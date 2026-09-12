@@ -1,0 +1,19 @@
+# Canonical identities for this repository.
+#
+# Git reads this file to collapse several name and address spellings onto one
+# contributor in `git shortlog`, `git log --use-mailmap`, `git blame` and most
+# forge interfaces. It changes DISPLAY ONLY. The raw commit objects still hold
+# whatever name and address were used at commit time.
+#
+# Format, canonical first:
+#   Canonical Name <canonical@email> Commit Name <commit@email>
+#   Canonical Name <canonical@email> <commit@email>          # any name, that address
+#   Canonical Name <canonical@email> Commit Name <>          # that name, any address
+#
+# To change how you are displayed everywhere, edit the canonical side of these
+# lines. Keep AUTHORS in agreement.
+
+Sarah <43112447+SeamusMullan@users.noreply.github.com> <seamusmullan2023@gmail.com>
+Sarah <43112447+SeamusMullan@users.noreply.github.com> Seamus Mullan <43112447+SeamusMullan@users.noreply.github.com>
+Sarah <43112447+SeamusMullan@users.noreply.github.com> Seamus Mullan <seamusmullan2023@gmail.com>
+Sarah <43112447+SeamusMullan@users.noreply.github.com> SeamusMullan <43112447+SeamusMullan@users.noreply.github.com>
