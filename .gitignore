@@ -1,5 +1,16 @@
-reference_paper/
+# Papers are not redistributed; see reference_paper/README.md for arXiv links.
+reference_paper/*
+!reference_paper/README.md
+
+# Build output
 target/
+
+# Leash run artefacts
 .leash/runs/
 .leash/cas/
+.leash/mcp/
+
+# Local, per-machine editor and agent settings
+.claude/settings.local.json
+
 *.log

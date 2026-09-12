@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+// examples/05_mcp_tools.leash
+// Importing tools from an MCP server and defining a gated custom tool.
+module examples.mcp
+
+use std.drivers
+use std.mcp
+
+// Tools from an MCP server are typed from the server's JSON schemas at check time
+// (schemas are cached in .leash/mcp/ so `leash check` is offline-reproducible).
+let github = mcp.connect(stdio("npx -y @modelcontextprotocol/server-github"))
+
+/// Create a GitHub issue. Requires human approval because it is outward-facing.
+tool file_issue(title: String, body: String) -> Int ! {tool, net, human} {
+  if not gate("File issue '{title}'?") { fail Permission("issue filing declined") }
+  let r = github.tool("create_issue")(owner: "sarah", repo: "leash", title: title, body: body)
+  r.number
+}
+
+agent scout = Agent {
+  driver: drivers.anthropic(model: "claude-opus-5"),
+  system: "Find flaky tests. Use tools. Report with the schema.",
+  tools: [github.tool("search_code"), file_issue],
+}
+
+type Flaky = { test: String, evidence: String, issue: Int? }
+
+task main {
+  input  { }
+  output [Flaky]
+  budget { cost: usd(3), tool_calls: 40 }
+  allow  { net: ["api.github.com"], human: true }
+}
+
+flow main(input) -> [Flaky] {
+  let found: [Flaky] = run scout(task: "Find up to 5 flaky tests in sarah/leash and file an issue for each.")
+  complete found
+}

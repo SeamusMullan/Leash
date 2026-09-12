@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+// examples/04_review_debate.leash
+// Adversarial review: two reviewers argue, a judge decides, the program enforces the outcome.
+module examples.debate
+
+use std.drivers
+use std.repo.Patch
+use std.patterns.debate
+
+agent proposer = Agent { driver: drivers.anthropic(model: "claude-opus-5"), system: file("prompts/proposer.md") }
+agent critic   = Agent { driver: drivers.anthropic(model: "claude-opus-5"), system: file("prompts/critic.md") }
+agent judge    = Agent { driver: drivers.anthropic(model: "claude-opus-5", effort: .High), system: file("prompts/judge.md") }
+
+type Verdict = { accept: Bool, reasons: [String], required_changes: [String] }
+
+task main {
+  input  { patch: Patch }
+  output Verdict
+  budget { cost: usd(5), llm_calls: 12 }
+}
+
+flow main(input) -> Verdict {
+  // std.patterns.debate is ordinary Leash code: a bounded loop of ask() calls.
+  let transcript = debate(proposer, critic, topic: "Is this patch correct and minimal?\n{input.patch}", rounds: 2)
+  let verdict: Verdict = ask judge("Decide. Transcript:\n{transcript}")
+  if not verdict.accept and len(verdict.required_changes) == 0 {
+    fail Model("judge rejected without required changes")
+  }
+  complete verdict
+}

@@ -1,0 +1,189 @@
+(* SPDX-License-Identifier: Apache-2.0 *)
+(* Copyright 2026 The Leash Authors *)
+
+(* Leash grammar, draft v0.1 (2026-09-12).
+   Notation: ISO-EBNF-like. `:=` defines, `|` alternates, `?` optional, `*` zero-or-more,
+   `+` one-or-more, `( )` groups, terminals in single quotes, token classes in CAPS.
+   Newlines are not significant except that a newline terminates a statement when the
+   next token cannot continue the expression (see docs/02-language-spec.md §2.6).
+   Contextual keywords are ordinary identifiers everywhere except where named below. *)
+
+(* ---------- Program and items ---------- *)
+
+Program      := ModuleDecl? Item* ;
+ModuleDecl   := 'module' Path ;
+Path         := IDENT ( '.' IDENT )* ;
+
+Item         := UseDecl | TypeDecl | EnumDecl | FnDecl | ToolDecl | AgentDecl
+              | MemoryDecl | TaskDecl | FlowDecl | ConstDecl | TestDecl ;
+
+UseDecl      := 'use' Path ( '.' '{' IDENT ( ',' IDENT )* ','? '}' )? ;
+ConstDecl    := 'pub'? 'let' IDENT ( ':' Type )? '=' Expr ;          (* must be pure *)
+
+TypeDecl     := 'pub'? 'type' IDENT Generics? '=' Type ;
+EnumDecl     := 'pub'? 'enum' IDENT Generics? '{' Variant ( ',' Variant )* ','? '}' ;
+Variant      := IDENT ( '(' Params ')' )? ;
+Generics     := '<' IDENT ( ',' IDENT )* '>' ;
+
+FnDecl       := DOC? 'pub'? 'fn' IDENT Generics? '(' Params? ')' ( '->' Type )? EffectClause? Block ;
+ToolDecl     := DOC 'pub'? 'tool' IDENT '(' Params? ')' ( '->' Type )? EffectClause? Block ;
+Params       := Param ( ',' Param )* ','? ;
+Param        := IDENT ':' Type ( '=' Expr )? ;
+EffectClause := '!' '{' ( Effect ( ',' Effect )* ','? )? '}' ;
+Effect       := 'llm' | 'tool' | 'shell' | 'fs.read' | 'fs.write' | 'net' | 'spawn'
+              | 'human' | 'clock' | 'rand' | 'env' ;
+
+AgentDecl    := DOC? 'pub'? 'agent' IDENT '=' Expr ;                (* Expr must have type Agent *)
+MemoryDecl   := DOC? 'pub'? 'memory' IDENT '=' Expr ;               (* Expr must have type Resource *)
+
+(* ---------- Tasks and flows ---------- *)
+
+TaskDecl     := DOC? 'pub'? 'task' IDENT '{' TaskSection* '}' ;
+TaskSection  := 'input'  RecordType
+              | 'output' Type
+              | 'require' '{' ( Expr ( ',' Expr )* ','? )? '}'
+              | 'ensure'  '{' ( Check ( ',' Check )* ','? )? '}'
+              | 'budget'  ScopeVal
+              | 'allow'   ScopeVal
+              | 'deny'    ScopeVal ;
+ScopeVal     := RecordLit | '(' Expr ')' | Path ( '(' Args? ')' )? ;
+              (* task-section form: `allow caps.read_only` or `allow caps.sandbox_edit([...])` is fine because
+                 the next token is a section keyword or `}`; in the block forms below a non-literal MUST be
+                 parenthesised, otherwise `allow caps.x { ... }` would parse as a named record literal. *)
+(* `input output require ensure deny` are contextual keywords inside a task body. *)
+
+Check        := 'check' '(' STRING ')' 'by' Expr CheckOpt* ;
+CheckOpt     := 'expect' Expr                (* predicate over the check result: stdout, exit_code, ... *)
+              | 'within' Expr                (* Duration *)
+              | 'on_timeout' Expr ;          (* .Fail (default) | .Record | .Skip *)
+
+FlowDecl     := DOC? 'pub'? 'flow' IDENT '(' IDENT ( ':' Type )? ')' ( '->' Type )? EffectClause? Block ;
+
+TestDecl     := 'test' STRING ( 'with' RecordLit )? Block ;     (* `test` is contextual: an item that starts with `test` STRING *)
+
+(* ---------- Types ---------- *)
+
+Type         := UnionFreeType ( '?' )? ;
+UnionFreeType:= PrimType | NamedType | ListType | TupleType | RecordType | FnType | '(' Type ')' ;
+PrimType     := 'Int' | 'Float' | 'Bool' | 'String' | 'Bytes' | 'Duration' | 'Money' | 'Unit' | 'Json' ;
+NamedType    := Path ( '<' Type ( ',' Type )* '>' )? ;
+ListType     := '[' Type ']' ;
+TupleType    := '(' Type ',' Type ( ',' Type )* ','? ')' ;
+RecordType   := '{' ( Field ( ',' Field )* ','? )? '}' ;
+Field        := IDENT ':' Type ( 'where' Expr )? ;
+FnType       := 'fn' '(' ( Type ( ',' Type )* )? ')' '->' Type EffectClause? ;
+
+(* ---------- Statements and blocks ---------- *)
+
+Block        := '{' Stmt* Expr? '}' ;
+Stmt         := ( LetStmt | VarStmt | AssignStmt | StateStmt | CheckpointStmt | ExprStmt ) ';'? ;
+LetStmt      := 'let' Pattern ( ':' Type )? '=' Expr ;
+VarStmt      := 'var' IDENT ( ':' Type )? '=' Expr ;
+AssignStmt   := LValue ( '=' | '+=' | '-=' ) Expr ;
+LValue       := IDENT ( '.' IDENT | '[' Expr ']' )* ;
+StateStmt    := 'state' '{' ( IDENT ':' Type '=' Expr ( ',' IDENT ':' Type '=' Expr )* ','? )? '}' ;
+              (* contextual; only at the top of a flow body; declares the mutable record `state` *)
+CheckpointStmt := 'checkpoint' STRING ;
+ExprStmt     := Expr ;
+
+(* ---------- Expressions (lowest to highest precedence) ---------- *)
+
+Expr         := ControlExpr | OrExpr ;
+
+ControlExpr  := IfExpr | MatchExpr | ForExpr | WhileExpr | LoopExpr | ReturnExpr
+              | BreakExpr | ContinueExpr | FailExpr | AttemptExpr | RetryExpr
+              | ParallelExpr | RaceExpr | AskExpr | RunExpr | SpawnExpr | AwaitExpr
+              | VerifyExpr | CompleteExpr | BudgetExpr | AllowExpr | Lambda ;
+
+IfExpr       := 'if' Expr Block ( 'else' ( IfExpr | Block ) )? ;
+MatchExpr    := 'match' Expr '{' MatchArm ( ',' MatchArm )* ','? '}' ;
+MatchArm     := Pattern ( 'if' Expr )? '=>' Expr ;
+ForExpr      := 'for' Pattern 'in' Expr Block ;
+WhileExpr    := 'while' Expr Block ;
+LoopExpr     := 'loop' Block ;
+ReturnExpr   := 'return' Expr? ;
+BreakExpr    := 'break' Expr? ;
+ContinueExpr := 'continue' ;
+
+FailExpr     := 'fail' ( FailureKind ( '(' Expr ( ',' Expr )* ')' )? | Expr ) ;
+FailureKind  := 'Context' | 'Tool' | 'Feedback' | 'Verify' | 'Recovery' | 'Entropy'
+              | 'Model' | 'Budget' | 'Permission' | 'Replay' | 'Unknown' ;
+AttemptExpr  := 'attempt' Block RecoverArm+ ;
+RecoverArm   := 'recover' ( FailureKind | '_' ) ( 'as' IDENT )? Block ;
+RetryExpr    := 'retry' '(' Expr ( ',' NamedArg )* ','? ')' Block ;        (* retry(n, on: Verify, backoff: .None) *)
+ParallelExpr := 'parallel' ( '(' NamedArg ( ',' NamedArg )* ')' )? '{' Expr ( ',' Expr )* ','? '}' ;
+RaceExpr     := 'race' '{' Expr ( ',' Expr )* ','? '}' ;
+
+AskExpr      := 'ask' PostfixExpr '(' Args? ')' ;      (* ask agent(prompt, name: value, ...) *)
+RunExpr      := 'run' PostfixExpr '(' Args? ')' ;      (* run agent(task: ..., context: ..., tools: ...) *)
+SpawnExpr    := 'spawn' ( AskExpr | RunExpr | CallLike ) ;
+CallLike     := PostfixExpr ;                          (* must be a call expression *)
+AwaitExpr    := 'await' Expr ;
+VerifyExpr   := 'verify' ( 'ensure' | '[' STRING ( ',' STRING )* ']' | Check ) ;
+CompleteExpr := 'complete' Expr ;
+BudgetExpr   := 'budget' ( RecordLit | '(' Expr ')' ) Block ;
+AllowExpr    := 'allow'  ( RecordLit | '(' Expr ')' ) Block ;
+
+Lambda       := ( IDENT | '(' ( IDENT ( ',' IDENT )* )? ')' ) '=>' ( Block | Expr ) ;
+
+OrExpr       := AndExpr ( 'or' AndExpr )* ;
+AndExpr      := NotExpr ( 'and' NotExpr )* ;
+NotExpr      := 'not' NotExpr | CmpExpr ;
+CmpExpr      := AddExpr ( ( '==' | '!=' | '<' | '<=' | '>' | '>=' ) AddExpr )? ;
+AddExpr      := MulExpr ( ( '+' | '-' ) MulExpr )* ;
+MulExpr      := UnaryExpr ( ( '*' | '/' | '%' ) UnaryExpr )* ;
+UnaryExpr    := '-' UnaryExpr | PostfixExpr ;
+PostfixExpr  := PrimaryExpr Postfix* ;
+Postfix      := '.' IDENT                              (* field access or UFCS method *)
+              | '.' IDENT '(' Args? ')' TrailingLambda?
+              | '(' Args? ')' TrailingLambda?
+              | '[' Expr ']'
+              | '?'  ;                                 (* optional chaining: e?.f, e?[i] *)
+TrailingLambda := '{' ( IDENT | '(' IDENT ( ',' IDENT )* ')' ) '=>' Stmt* Expr? '}' ;
+Args         := Arg ( ',' Arg )* ','? ;
+Arg          := NamedArg | Expr ;
+NamedArg     := IDENT ':' Expr ;
+
+PrimaryExpr  := Literal | Path | RecordLit | NamedRecordLit | ListLit | TupleLit
+              | VariantLit | '(' Expr ')' | Block ;
+Literal      := INT | FLOAT | STRING | RAWSTRING | DURATION | 'true' | 'false' | 'null' ;
+RecordLit    := '{' ( FieldInit ( ',' FieldInit )* ','? )? '}' ;
+NamedRecordLit := Path RecordLit ;                     (* Triage { ... } ; Agent { ... } *)
+FieldInit    := IDENT ( ':' Expr )? ;                  (* `{ id }` is shorthand for `{ id: id }` *)
+ListLit      := '[' ( Expr ( ',' Expr )* ','? )? ']' ;
+TupleLit     := '(' Expr ',' ( Expr ( ',' Expr )* )? ','? ')' ;
+VariantLit   := '.' IDENT ( '(' Args? ')' )? ;         (* .High, .Merged(pr: 3) — needs an expected enum type *)
+
+(* ---------- Patterns ---------- *)
+
+Pattern      := '_' | IDENT | Literal
+              | '(' Pattern ( ',' Pattern )* ','? ')'
+              | '[' ( Pattern ( ',' Pattern )* )? ( '..' IDENT? )? ']'
+              | '{' IDENT ( ':' Pattern )? ( ',' IDENT ( ':' Pattern )? )* ','? '}'
+              | '.' IDENT ( '(' Pattern ( ',' Pattern )* ')' )?
+              | FailureKind ( '(' Pattern ( ',' Pattern )* ')' )? ;
+
+(* ---------- Lexical ---------- *)
+
+IDENT        := /[A-Za-z_][A-Za-z0-9_]*/ ;             (* excluding hard keywords *)
+INT          := /[0-9][0-9_]*/ ;
+FLOAT        := /[0-9][0-9_]*\.[0-9][0-9_]*([eE][+-]?[0-9]+)?/ ;
+DURATION     := /[0-9][0-9_]*(ms|s|m|h)/ ;
+STRING       := '"' ( CHAR | ESCAPE | INTERP )* '"'
+              | '"""' NEWLINE ( CHAR | ESCAPE | INTERP | NEWLINE )* '"""' ;   (* common indent stripped *)
+INTERP       := '{' Expr '}' ;                         (* `{{` and `}}` are literal braces *)
+ESCAPE       := '\\' ( 'n' | 't' | 'r' | '0' | '\\' | '"' | '{' | '}' | 'u{' HEX+ '}' ) ;
+RAWSTRING    := 'r"' CHAR* '"' | 'r"""' ( CHAR | NEWLINE )* '"""' ;   (* no escapes, no interpolation *)
+DOC          := ( '///' CHAR* NEWLINE )+ ;
+COMMENT      := '//' CHAR* NEWLINE | '/*' ( CHAR | NEWLINE )* '*/' ;   (* block comments nest *)
+
+(* Hard keywords (reserved everywhere):
+   module use pub let var fn type enum tool agent memory task flow
+   ask run spawn await parallel race retry attempt recover fail checkpoint verify complete
+   if else match for in while loop break continue return true false null and or not as where
+   budget allow
+   Contextual keywords (only special in the positions shown above):
+   test (item-level, followed by STRING) input output require ensure deny check by expect within on_timeout
+   state on backoff concurrency limit with
+   Effect names and failure kinds are contextual identifiers. `gate`, `select`, `shell`, `test`
+   (inside `by`) are ordinary std functions. *)

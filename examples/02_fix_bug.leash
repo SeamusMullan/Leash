@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+// examples/02_fix_bug.leash
+// The H3 workflow from "AI Harness Engineering": reproduce -> attribute -> fix -> verify -> report.
+// Control flow, budgets, permissions and verification are code. The model fills in values.
+module examples.fix_bug
+
+use std.drivers
+use std.repo.{Repo, Patch}
+use std.failure.FailureKind
+use std.tools.{fs, shell, test}
+
+/// A structured failure attribution. The attributor must fill every field.
+type Attribution = {
+  observed: String,
+  expected: String,
+  kind: FailureKind,
+  evidence: [String],          // file paths or log excerpts
+  alternatives: [String],
+  next_action: String,
+}
+
+agent attributor = Agent {
+  driver: drivers.anthropic(model: "claude-sonnet-5", effort: .Medium),
+  system: file("prompts/attributor.md"),
+}
+
+agent coder = Agent {
+  driver: drivers.claude_code(model: "claude-opus-5", effort: .High, permission_mode: .AcceptEdits),
+  system: file("prompts/coder.md"),
+  tools: [fs.read, fs.write, fs.edit, shell],
+}
+
+agent reviewer = Agent {
+  driver: drivers.anthropic(model: "claude-opus-5", effort: .High),
+  system: file("prompts/reviewer.md"),
+}
+
+type Review = { blocking: Bool, notes: [String] }
+
+task FixEmptyPassword {
+  input {
+    repo: Repo,
+    issue: String,
+  }
+  output Patch
+
+  require {
+    repo.is_clean(),
+  }
+
+  // Requirements bound to deterministic evidence. `complete` refuses without them.
+  ensure {
+    check("empty password rejected")
+      by shell("node harness/probe.js empty")
+      expect stdout.contains("Password is required."),
+    check("valid login preserved")
+      by shell("node harness/probe.js valid")
+      expect stdout.contains("\"ok\":true"),
+    check("invalid credentials preserved")
+      by shell("node harness/probe.js invalid")
+      expect stdout.contains("Invalid credentials."),
+    check("targeted tests pass")
+      by test("npm test -- login") within 5m,
+    check("full regression")
+      by test("npm test") within 10m
+      on_timeout .Record,          // a timeout is recorded, never treated as success
+  }
+
+  budget { tokens: 400_000, cost: usd(10), wall: 30m, tool_calls: 200 }
+
+  allow {
+    fs.read:  "**",
+    fs.write: ["src/**", "test/**"],
+    shell:    ["npm test*", "node harness/probe.js *"],
+    net:      [],
+  }
+}
+
+flow FixEmptyPassword(input) -> Patch {
+  state {
+    hypothesis: String = "",
+    inspected: [String] = [],
+  }
+
+  // 1. Reproduce. Deterministic. Fails early with a typed failure kind.
+  let repro = shell("node harness/probe.js empty")
+  if repro.stdout.contains("Password is required.") {
+    fail Verify("bug does not reproduce; nothing to fix")
+  }
+
+  // 2. Attribute. The model classifies; the program records and decides.
+  let attr: Attribution = ask attributor("""
+    Observed output: {repro.stdout}
+    Expected output: a validation error containing "Password is required."
+    Issue: {input.issue}
+    Classify the failure and name the layer that must change.
+  """)
+  trace.attribution(attr)
+  state.hypothesis = attr.next_action
+
+  // 3. Fix, verify, retry on verification failure. Each attempt is journaled.
+  let patch = retry(3, on: Verify, backoff: .None) {
+    checkpoint "before-fix"
+    let ctx = select(input.repo, files: attr.evidence, max_tokens: 60_000)
+    state.inspected = ctx.files
+
+    run coder(
+      task: """
+        Fix this issue: {input.issue}
+        Root cause ({attr.kind}): {attr.next_action}
+        Change only the attributed layer. Add a test for the corrected behaviour.
+      """,
+      context: ctx,
+    )
+
+    verify ensure          // runs every `ensure` check, records Evidence, fails with Verify on a red check
+    input.repo.diff(since: "before-fix")
+  }
+
+  // 4. Independent reviews, in parallel, with separate contexts. Order of results is syntactic.
+  let (r1, r2): (Review, Review) = parallel {
+    ask reviewer("Review for correctness and wrong-layer fixes:\n{patch}"),
+    ask reviewer("Review for weakened tests, residue files, and dependency churn:\n{patch}"),
+  }
+  let reviews = [r1, r2]
+  if reviews.any(r => r.blocking) {
+    fail Entropy("review blocked: {reviews.flat_map(r => r.notes)}")
+  }
+
+  // 5. Report. `complete` requires evidence for every `ensure` check.
+  complete patch
+}

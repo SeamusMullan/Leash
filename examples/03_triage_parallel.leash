@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+// examples/03_triage_parallel.leash
+// Fan-out over many items with bounded concurrency and a shared budget.
+module examples.triage
+
+use std.drivers
+use std.repo.Repo
+
+type Issue = { id: Int, title: String, body: String }
+
+enum Severity { Low, Medium, High, Critical }
+
+type Triage = {
+  id: Int,
+  severity: Severity,
+  component: String,
+  duplicate_of: Int?,
+  summary: String where len(summary) <= 200,
+}
+
+agent triager = Agent {
+  driver: drivers.anthropic(model: "claude-sonnet-5", effort: .Low),
+  system: file("prompts/triager.md"),
+}
+
+task main {
+  input  { issues: [Issue] }
+  output [Triage]
+  budget { cost: usd(20), wall: 20m }
+}
+
+flow main(input) -> [Triage] {
+  // map with concurrency: 8. Results keep input order regardless of completion order.
+  let results = map(input.issues, concurrency: 8) { issue =>
+    attempt {
+      ask triager("Triage this issue.\n#{issue.id} {issue.title}\n\n{issue.body}")
+    } recover Budget as e {
+      // Budget exhaustion is a typed failure; degrade gracefully instead of crashing the batch.
+      Triage { id: issue.id, severity: .Low, component: "unknown", duplicate_of: null, summary: "budget exhausted: {e.message}" }
+    }
+  }
+
+  let critical = results.filter(t => t.severity == .Critical)
+  if len(critical) > 0 and not gate("{len(critical)} critical issues found. Continue?") {
+    fail Permission("operator declined to continue")
+  }
+  complete results
+}
