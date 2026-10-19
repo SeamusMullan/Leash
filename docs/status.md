@@ -7,8 +7,8 @@ Legend: todo · assigned(<who>) · in-progress · review(<PR>) · done · blocke
 | WP-01 | Repository scaffold, workspace, CI | [WP-01-repo-scaffold](subagents/WP-01-repo-scaffold.md) | done([#2](https://github.com/SeamusMullan/Leash/pull/2)) | | | merged; macOS CI fix in `fix/ci-rapidcheck` |
 | WP-02 | Machine-readable spec files | [WP-02-spec-schemas](subagents/WP-02-spec-schemas.md) | done([#4](https://github.com/SeamusMullan/Leash/pull/4)) | | | 23 cases; valijson draft-7 `definitions` workaround |
 | WP-03 | Lexer, parser, AST, formatter (v0 subset) | [WP-03-parser-v0](subagents/WP-03-parser-v0.md) | done([#5](https://github.com/SeamusMullan/Leash/pull/5)) | | | 44 cases; CLI, fuzz targets and fixtures |
-| WP-04 | Interpreter core, journal, replay/resume (v0) | [WP-04-interpreter-journal-v0](subagents/WP-04-interpreter-journal-v0.md) | todo | | | |
-| WP-05 | Mock driver and the Anthropic streaming spike | [WP-05-drivers-mock-anthropic-ask](subagents/WP-05-drivers-mock-anthropic-ask.md) | todo | | | |
+| WP-04 | Interpreter core, journal, replay/resume (v0) | [WP-04-interpreter-journal-v0](subagents/WP-04-interpreter-journal-v0.md) | in-progress | | [#6](https://github.com/SeamusMullan/Leash/pull/6) | stage 1: evaluator foundation |
+| WP-05 | Mock driver and the Anthropic streaming spike | [WP-05-drivers-mock-anthropic-ask](subagents/WP-05-drivers-mock-anthropic-ask.md) | in-progress | | [#7](https://github.com/SeamusMullan/Leash/pull/7) | stage 1: driver interface and mock |
 | WP-06 | Run directory, manifest, CAS, trace layer v0 | [WP-06-run-dir-cas-traces-v0](subagents/WP-06-run-dir-cas-traces-v0.md) | todo | | | |
 | WP-07 | Full parser and formatter | [WP-07-parser-full](subagents/WP-07-parser-full.md) | todo | | | |
 | WP-08 | Type checker and JSON Schema generation | [WP-08-typechecker-schema](subagents/WP-08-typechecker-schema.md) | todo | | | |
