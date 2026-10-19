@@ -4,7 +4,7 @@ Legend: todo · assigned(<who>) · in-progress · review(<PR>) · done · blocke
 
 | WP | Title | Brief | Status | Owner | PR | Notes |
 |---|---|---|---|---|---|---|
-| WP-01 | Repository scaffold, workspace, CI | [WP-01-repo-scaffold](subagents/WP-01-repo-scaffold.md) | todo | | | |
+| WP-01 | Repository scaffold, workspace, CI | [WP-01-repo-scaffold](subagents/WP-01-repo-scaffold.md) | review([#2](https://github.com/SeamusMullan/Leash/pull/2)) | | | local verification on `dev-local`; CI pending |
 | WP-02 | Machine-readable spec files | [WP-02-spec-schemas](subagents/WP-02-spec-schemas.md) | todo | | | |
 | WP-03 | Lexer, parser, AST, formatter (v0 subset) | [WP-03-parser-v0](subagents/WP-03-parser-v0.md) | todo | | | |
 | WP-04 | Interpreter core, journal, replay/resume (v0) | [WP-04-interpreter-journal-v0](subagents/WP-04-interpreter-journal-v0.md) | todo | | | |

@@ -48,6 +48,34 @@ are Hermes and Claude Code (`docs/adr/0004-drivers.md`).
 Start with `docs/00-vision.md`, then `docs/01-language-tour.md`, then
 `docs/12-roadmap.md`.
 
+## Building
+
+Toolchain: CMake 3.30 or later, Ninja, Clang 19+ or GCC 14+, and vcpkg. Boost
+1.86 or later is required for Boost.Process v2.
+
+```
+export VCPKG_ROOT=/path/to/vcpkg
+cmake --preset dev
+cmake --build build/dev
+ctest --preset dev
+build/dev/src/cli/leash doctor
+```
+
+On macOS without vcpkg, install the dependencies with Homebrew and use the
+`dev-local` preset:
+
+```
+export HOMEBREW_PREFIX=$(brew --prefix)
+cmake --preset dev-local
+cmake --build build/local
+ctest --preset dev-local
+```
+
+`just ci` reproduces the CI steps. `just lint` adds the header and dependency
+licence checks. The module map is in `docs/03-runtime-architecture.md` §2:
+`src/spec`, `syntax`, `types`, `ir`, `runtime`, `store`, `policy`, `effects`,
+`drivers`, `trace`, `std`, `cli`, `lsp`, `eval` and `testkit`.
+
 ## Documents
 
 | | |
