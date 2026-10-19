@@ -420,7 +420,7 @@ Closure Interpreter::make_flow_closure(const Flow& flow) const {
 
 std::optional<Value> Interpreter::lookup_callable(std::string_view name, const Env& env) const {
     if (auto value = env.lookup(name)) {
-        return std::optional<Value>{std::move(*value)};
+        return value;
     }
     if (const FnDecl* function_decl = program_.find_fn(name)) {
         return function(std::make_shared<const Closure>(make_fn_closure(*function_decl)));
