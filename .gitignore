@@ -3,7 +3,13 @@ reference_paper/*
 !reference_paper/README.md
 
 # Build output
-target/
+build/
+vcpkg_installed/
+.cache/
+compile_commands.json
+.DS_Store
+.idea/
+.vscode/
 
 # Leash run artefacts
 .leash/runs/

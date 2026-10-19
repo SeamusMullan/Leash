@@ -1,0 +1,107 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Leash Authors
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.cache/vcpkg,readwrite"
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx install clang-format
+      - run: clang-format --dry-run --Werror $(git ls-files '*.cpp' '*.hpp')
+
+  headers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-headers.sh
+      - run: scripts/check-licences.sh
+
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/vcpkg
+          key: vcpkg-tidy-${{ hashFiles('vcpkg.json') }}
+      - name: Install LLVM
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          echo "/usr/lib/llvm-19/bin" >> "$GITHUB_PATH"
+      - run: cmake --preset ci
+        env:
+          CC: clang
+          CXX: clang++
+      - run: cmake --build build/ci
+      - run: run-clang-tidy -p build/ci -warnings-as-errors '*'
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/vcpkg
+          key: vcpkg-asan-${{ hashFiles('vcpkg.json') }}
+      - name: Install LLVM
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          echo "/usr/lib/llvm-19/bin" >> "$GITHUB_PATH"
+      - run: cmake --preset asan
+        env:
+          CC: clang
+          CXX: clang++
+      - run: cmake --build build/asan
+      - run: ctest --preset asan
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/vcpkg
+          key: vcpkg-test-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+      - name: Install LLVM (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          echo "/usr/lib/llvm-19/bin" >> "$GITHUB_PATH"
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+      - run: cmake --preset ci
+        env:
+          CC: clang
+          CXX: clang++
+      - run: cmake --build build/ci
+      - run: ctest --preset ci

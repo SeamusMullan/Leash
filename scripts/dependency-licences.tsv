@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Leash Authors
+# port	SPDX	read from
+boost-asio	BSL-1.0	vcpkg port manifest
+boost-beast	BSL-1.0	vcpkg port manifest
+boost-process	BSL-1.0	vcpkg port manifest
+boost-uuid	BSL-1.0	vcpkg port manifest
+openssl	Apache-2.0	vcpkg port manifest
+nlohmann-json	MIT	vcpkg port manifest
+cli11	BSD-3-Clause	vcpkg port manifest
+spdlog	MIT	vcpkg port manifest
+tomlplusplus	MIT	vcpkg port manifest
+blake3	CC0-1.0 OR Apache-2.0	vcpkg port manifest
+valijson	BSD-2-Clause	vcpkg port manifest
+catch2	BSL-1.0	vcpkg port manifest
+rapidcheck	BSD-2-Clause	vcpkg port manifest

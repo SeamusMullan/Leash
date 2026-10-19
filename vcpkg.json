@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "leash",
+  "version-string": "0.1.0",
+  "license": "Apache-2.0",
+  "builtin-baseline": "664933b8d385dfc01f4e0cdff4c7c74e71f6a740",
+  "dependencies": [
+    "boost-asio",
+    "boost-beast",
+    "boost-process",
+    "boost-uuid",
+    "openssl",
+    "nlohmann-json",
+    "cli11",
+    "spdlog",
+    "tomlplusplus",
+    "blake3",
+    "valijson",
+    "catch2",
+    "rapidcheck"
+  ]
+}
