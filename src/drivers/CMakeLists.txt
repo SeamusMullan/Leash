@@ -2,6 +2,7 @@
 # Copyright 2026 The Leash Authors
 
 find_package(Boost 1.83 REQUIRED COMPONENTS system)
+find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(blake3 CONFIG REQUIRED)
 
@@ -17,7 +18,12 @@ endif()
 
 add_library(leash_drivers STATIC
     drivers.cpp
-    mock.cpp)
+    mock.cpp
+    wire.cpp
+    sse.cpp
+    usage.cpp
+    http_parser.cpp
+    spike.cpp)
 
 target_include_directories(leash_drivers PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -26,6 +32,8 @@ target_link_libraries(leash_drivers
     PRIVATE
         leash_warnings
         ${LEASH_BLAKE3_TARGET}
+        OpenSSL::SSL
+        OpenSSL::Crypto
     PUBLIC
         leash_spec
         nlohmann_json::nlohmann_json
