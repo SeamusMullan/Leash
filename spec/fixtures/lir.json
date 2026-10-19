@@ -1,0 +1,52 @@
+{
+  "lir_version": 1,
+  "module": "examples.hello",
+  "items": [
+    {
+      "id": 0,
+      "kind": "Let",
+      "span": {
+        "file": "examples/01_hello.leash",
+        "line": 41,
+        "col": 3,
+        "end_line": 41,
+        "end_col": 76
+      },
+      "ty": "[Suggestion]",
+      "effects": [],
+      "name": "ideas",
+      "value": 1
+    },
+    {
+      "id": 1,
+      "kind": "Ask",
+      "span": {
+        "file": "examples/01_hello.leash",
+        "line": 41,
+        "col": 22,
+        "end_line": 41,
+        "end_col": 76
+      },
+      "ty": "[Suggestion]",
+      "effects": ["llm.ask"],
+      "site_id": "examples.hello::main#ask@L41",
+      "agent": "namer",
+      "prompt": "Suggest three project names for: {input.topic}"
+    },
+    {
+      "id": 2,
+      "kind": "Complete",
+      "span": {
+        "file": "examples/01_hello.leash",
+        "line": 48,
+        "col": 3,
+        "end_line": 48,
+        "end_col": 16
+      },
+      "ty": "Never",
+      "effects": ["complete"],
+      "site_id": "examples.hello::main#complete@L48",
+      "value": 0
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/traces/tool/v1.schema.json",
+  "title": "Leash tool trace entry",
+  "description": "One tool or shell call derived from a journal child: command or tool, arguments, exit code, duration, timeout, failure kind and whether a retry recovered it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "effect_id",
+    "at",
+    "tool",
+    "duration_ms"
+  ],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "effect_id": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "tool": {
+      "type": "string",
+      "minLength": 1
+    },
+    "command": {
+      "type": "string",
+      "description": "Rendered shell command for shell tools."
+    },
+    "args": {
+      "type": "object",
+      "description": "Structured tool arguments."
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "failed",
+        "cancelled",
+        "timeout"
+      ]
+    },
+    "exit_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timeout": {
+      "type": "boolean",
+      "description": "True when the call hit its timeout."
+    },
+    "failure_kind": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/FailureKind"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recovered": {
+      "type": "boolean",
+      "description": "True when a later retry of the same intent succeeded."
+    },
+    "output_ref": {
+      "$ref": "#/definitions/CasHash"
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "FailureKind": {
+      "type": "string",
+      "enum": [
+        "Context",
+        "Tool",
+        "Feedback",
+        "Verify",
+        "Recovery",
+        "Entropy",
+        "Model",
+        "Budget",
+        "Permission",
+        "Replay",
+        "Unknown"
+      ]
+    }
+  }
+}

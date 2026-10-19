@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/traces/action/v1.schema.json",
+  "title": "Leash action trace entry",
+  "description": "Externally meaningful operations derived from the journal: read_file edit_file run_tool ask run verify checkpoint gate complete fail. Traces are regenerable from the journal and are never the source of truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "effect_id",
+    "at",
+    "op"
+  ],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "effect_id": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "op": {
+      "type": "string",
+      "enum": [
+        "read_file",
+        "edit_file",
+        "run_tool",
+        "ask",
+        "run",
+        "verify",
+        "checkpoint",
+        "gate",
+        "complete",
+        "fail"
+      ]
+    },
+    "site_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-line human-readable description of the operation."
+    },
+    "ref": {
+      "$ref": "#/definitions/CasHash",
+      "description": "CAS pointer to the full operation payload."
+    },
+    "path": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    }
+  }
+}

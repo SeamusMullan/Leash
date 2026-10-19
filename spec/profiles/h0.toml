@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Leash Authors
+#
+# H0: no harness artifacts. The model sees the task description and repository
+# only, so the harness contribution is measurable against the other profiles.
+
+[profile]
+name = "h0"
+
+[artifacts]
+tool_registry = false
+test_command_registry = false
+tool_usage_protocol = false
+project_memory = false
+task_state = false
+context_selection_protocol = false
+check_registry = false
+reproduction_protocol = false
+attribution_protocol = false
+verification_protocol = false
+report_template = false
+
+[system_prompt]
+sections = []

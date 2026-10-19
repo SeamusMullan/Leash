@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Leash Authors
+#
+# H2: H1 plus project memory, TASK_STATE.md and the context-selection protocol.
+
+[profile]
+name = "h2"
+
+[artifacts]
+tool_registry = true
+test_command_registry = true
+tool_usage_protocol = true
+project_memory = true
+task_state = true
+context_selection_protocol = true
+check_registry = false
+reproduction_protocol = false
+attribution_protocol = false
+verification_protocol = false
+report_template = false
+
+[system_prompt]
+sections = ["tool_usage", "context_selection"]

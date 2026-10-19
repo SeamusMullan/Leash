@@ -1,0 +1,442 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/journal/v1.schema.json",
+  "title": "Leash journal entry",
+  "description": "One JSON object per line of journal.jsonl. An entry is first written with status 'started' before the effect is performed and then rewritten as a new line with a final status; replay uses the last line for an id. Payloads larger than 8 KiB are stored in the content-addressed store and referenced as {\"cas\": \"b3:<64 hex>\"}; smaller payloads may be inlined. Secrets are replaced by secret:<name>:<hash8> before hashing and writing. Timestamps are RFC 3339 UTC with millisecond precision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "id",
+    "path",
+    "kind",
+    "site",
+    "input_hash",
+    "status",
+    "started_at"
+  ],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic line sequence number within the run."
+    },
+    "id": {
+      "$ref": "#/definitions/CasHash",
+      "description": "Effect identity, a BLAKE3 hash of the effect's canonical identity."
+    },
+    "path": {
+      "type": "array",
+      "description": "Effect path: one [site_id, occurrence] pair per enclosing effectful node, outermost first.",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "integer",
+            "minimum": 0
+          }
+        ]
+      }
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "llm.ask",
+        "llm.run",
+        "tool",
+        "shell",
+        "fs.read",
+        "fs.write",
+        "net",
+        "human",
+        "clock",
+        "rand",
+        "env",
+        "checkpoint",
+        "spawn",
+        "race",
+        "complete",
+        "fail",
+        "state"
+      ]
+    },
+    "site": {
+      "$ref": "#/definitions/Site"
+    },
+    "input_hash": {
+      "$ref": "#/definitions/CasHash",
+      "description": "Hash of the canonical input: prompt, rendered context hash, schema hash, system prompt hash, driver config hash, tool set hash and capability set. It does not cover budget state."
+    },
+    "input": {
+      "$ref": "#/definitions/Payload"
+    },
+    "output": {
+      "$ref": "#/definitions/Payload"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "started",
+        "ok",
+        "failed",
+        "cancelled",
+        "timeout"
+      ]
+    },
+    "failure": {
+      "description": "Present when status is not 'ok'.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/Failure"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "started_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "ended_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "usage": {
+      "$ref": "#/definitions/Usage"
+    },
+    "driver": {
+      "$ref": "#/definitions/Driver"
+    },
+    "caps": {
+      "$ref": "#/definitions/Caps"
+    },
+    "budget_after": {
+      "$ref": "#/definitions/BudgetAfter"
+    },
+    "reused_from": {
+      "description": "Journal id of the entry whose recorded result was reused during replay.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/CasHash"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "parent": {
+      "description": "Journal id of the parent effect, for child effects.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/CasHash"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "children": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of child effects recorded inside this effect."
+    },
+    "note": {
+      "type": "string",
+      "description": "Free-form note, for example a driver omission such as 'temperature ignored by driver'."
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$",
+      "description": "Content-addressed object reference: b3: followed by 64 lowercase hex characters."
+    },
+    "FailureKind": {
+      "type": "string",
+      "enum": [
+        "Context",
+        "Tool",
+        "Feedback",
+        "Verify",
+        "Recovery",
+        "Entropy",
+        "Model",
+        "Budget",
+        "Permission",
+        "Replay",
+        "Unknown"
+      ]
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+      "description": "RFC 3339 UTC timestamp with millisecond precision."
+    },
+    "Site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line",
+        "col"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "col": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "Payload": {
+      "description": "An inline JSON value for payloads of at most 8 KiB, or a CAS reference {\"cas\": \"b3:<64 hex>\"} for larger payloads.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cas"
+          ],
+          "properties": {
+            "cas": {
+              "$ref": "#/definitions/CasHash"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "not": {
+            "required": [
+              "cas"
+            ]
+          }
+        },
+        {
+          "type": "array"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "Failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "message"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/FailureKind"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "description": "Additional structured failure data. A large value is a CAS reference."
+        },
+        "site": {
+          "$ref": "#/definitions/Site"
+        },
+        "cause": {
+          "description": "The failure that caused this one. It has the same shape as Failure; nesting is bounded by the data, not by a recursive schema.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "message"
+          ],
+          "properties": {
+            "kind": {
+              "$ref": "#/definitions/FailureKind"
+            },
+            "message": {
+              "type": "string"
+            },
+            "data": {
+              "description": "Additional structured failure data."
+            },
+            "site": {
+              "$ref": "#/definitions/Site"
+            }
+          }
+        }
+      }
+    },
+    "Usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_read_input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_creation_input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{4}$",
+          "description": "Exact decimal USD amount with four fractional digits; money is never a JSON float."
+        },
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Budget counter recorded for convenience; it is not part of the shared Usage type."
+        }
+      }
+    },
+    "Driver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "model"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "config_hash": {
+          "$ref": "#/definitions/CasHash"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "Caps": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The capability set active for the effect, in the same spelling as leases and the manifest.",
+      "properties": {
+        "fs.read": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "fs.write": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "shell": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "net": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "human": {
+          "type": "boolean"
+        },
+        "spawn": {
+          "type": "boolean"
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BudgetAfter": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Remaining budget after the effect, not the amount consumed.",
+      "properties": {
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{4}$"
+        },
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "llm_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wall_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

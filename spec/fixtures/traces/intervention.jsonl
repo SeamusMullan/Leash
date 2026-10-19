@@ -1,0 +1,1 @@
+{"seq":17,"effect_id":"b3:ffee001122334455ffee001122334455ffee001122334455ffee001122334455","at":"2026-09-12T10:03:00.000Z","kind":"gate","question":"Allow the shell command 'rm -rf build'?","answer":"allow","avoidable":true,"harness_gap":"no deterministic cleanup tool in the registry"}

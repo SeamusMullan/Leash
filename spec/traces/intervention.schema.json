@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/traces/intervention/v1.schema.json",
+  "title": "Leash intervention trace entry",
+  "description": "A gate or human answer derived from a human effect, with whether it was avoidable and which harness gap it reveals.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "at",
+    "kind",
+    "question",
+    "answer",
+    "avoidable",
+    "harness_gap"
+  ],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "effect_id": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "gate",
+        "human_answer"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answer": {
+      "type": "string"
+    },
+    "avoidable": {
+      "type": "boolean",
+      "description": "True when the harness should have supplied this context, diagnosis or decision itself."
+    },
+    "harness_gap": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The missing harness capability, or null when the intervention was unavoidable."
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    }
+  }
+}

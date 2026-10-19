@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/traces/attribution/v1.schema.json",
+  "title": "Leash attribution trace entry",
+  "description": "A Failure with its kind plus the Attribution record explaining it: category, summary, evidence and the corrective action the harness or model should take.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "effect_id",
+    "at",
+    "failure_kind",
+    "failure",
+    "attribution"
+  ],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "effect_id": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "failure_kind": {
+      "$ref": "#/definitions/FailureKind"
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "message"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/FailureKind"
+        },
+        "message": {
+          "type": "string"
+        },
+        "site": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "col": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "data": {
+          "description": "Additional structured failure data."
+        },
+        "cause": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "summary"
+      ],
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": [
+            "harness_gap",
+            "model_error",
+            "task_ambiguity",
+            "environment",
+            "unknown"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CasHash"
+          }
+        },
+        "corrective_action": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "FailureKind": {
+      "type": "string",
+      "enum": [
+        "Context",
+        "Tool",
+        "Feedback",
+        "Verify",
+        "Recovery",
+        "Entropy",
+        "Model",
+        "Budget",
+        "Permission",
+        "Replay",
+        "Unknown"
+      ]
+    }
+  }
+}

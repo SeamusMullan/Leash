@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/traces/entropy/v1.schema.json",
+  "title": "Leash entropy trace entry",
+  "description": "One audit item from the entropy audit: a category from docs/06 section 10 and a severity from 0 to 3.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "at",
+    "category",
+    "severity"
+  ],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "effect_id": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "code",
+        "docs",
+        "dependency",
+        "test",
+        "residue",
+        "architecture",
+        "workflow"
+      ]
+    },
+    "severity": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3,
+      "description": "0 = informational, 3 = unsafe or destructive."
+    },
+    "detail": {
+      "type": "string",
+      "minLength": 1
+    },
+    "path": {
+      "type": "string"
+    },
+    "evidence_ref": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "reverted": {
+      "type": "boolean"
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    }
+  }
+}

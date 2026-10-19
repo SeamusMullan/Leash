@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Leash Authors
+#
+# H1: H0 plus the tool registry, test-command registry and tool-usage protocol.
+
+[profile]
+name = "h1"
+
+[artifacts]
+tool_registry = true
+test_command_registry = true
+tool_usage_protocol = true
+project_memory = false
+task_state = false
+context_selection_protocol = false
+check_registry = false
+reproduction_protocol = false
+attribution_protocol = false
+verification_protocol = false
+report_template = false
+
+[system_prompt]
+sections = ["tool_usage"]

@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/traces/outcome/v1.schema.json",
+  "title": "Leash episode outcome",
+  "description": "The single outcome object of an episode: the five-label classification of docs/06 section 6, a justification naming the evidence, interventions and audit items that determined it, the per-episode metrics of docs/11 section 3 and the budget totals.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "label",
+    "justification",
+    "metrics",
+    "budget_totals"
+  ],
+  "properties": {
+    "label": {
+      "type": "string",
+      "enum": [
+        "autonomous_verified_success",
+        "assisted_verified_success",
+        "unverified_success",
+        "failed",
+        "unsafe_invalid"
+      ]
+    },
+    "justification": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence_refs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/CasHash"
+              }
+            },
+            "intervention_seqs": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "entropy_seqs": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-episode metrics. Every metric is optional so a partial episode package still validates.",
+      "properties": {
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model_turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{4}$"
+        },
+        "wall_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verification_autonomy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "context_meaningfulness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tool_recovery_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "attribution_completeness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "entropy_delta": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "oracle_diversity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "test_coverage_delta": {
+          "type": "number",
+          "description": "Coverage change when the harness can measure it; absent otherwise."
+        },
+        "judge_only_evidence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recovery_failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "merge_conflicts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reverts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "re_verifications": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "permission_events": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reverted_edits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "replay_ok": {
+          "type": "boolean"
+        }
+      }
+    },
+    "budget_totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{4}$"
+        },
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "llm_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wall_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    }
+  }
+}

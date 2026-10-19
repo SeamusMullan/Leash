@@ -1,0 +1,1 @@
+{"seq":21,"effect_id":"b3:0011223344556677001122334455667700112233445566770011223344556677","at":"2026-09-12T10:04:00.000Z","category":"test","severity":2,"detail":"the model deleted an assertion from login.test.ts instead of fixing the code","path":"src/login.test.ts","evidence_ref":"b3:8899aabbccddeeff8899aabbccddeeff8899aabbccddeeff8899aabbccddeeff","reverted":true}
