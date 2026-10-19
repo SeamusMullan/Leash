@@ -1,0 +1,32 @@
+{
+  "run_id": "2026-09-12T10-00-00Z-hello",
+  "created_at": "2026-09-12T10:00:00.000Z",
+  "leash_version": "0.1.0",
+  "journal_version": 1,
+  "lir_version": 1,
+  "program": {
+    "entry": "examples/01_hello.leash",
+    "flow": "main",
+    "lir_hash": "b3:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "source_hashes": {
+      "examples/01_hello.leash": "b3:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+    }
+  },
+  "inputs_hash": "b3:0011223344556677001122334455667700112233445566770011223344556677",
+  "seed": 1234,
+  "profile": "h0",
+  "mode": "live",
+  "drivers": {
+    "anthropic": {
+      "version": "api-2023-06-01",
+      "models": ["claude-opus-5"]
+    }
+  },
+  "repo": {
+    "path": "/tmp/leash/hello",
+    "head": "0000000000000000000000000000000000000000",
+    "worktree": "clean"
+  },
+  "parent_run": null,
+  "forked_at": null
+}

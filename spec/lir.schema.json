@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/lir/v1.schema.json",
+  "title": "Leash LIR",
+  "description": "Versioned LIR envelope. Every node carries id, kind, span, ty and effects; effectful nodes also carry site_id, the effect site identity used by the journal. Per-kind payload fields are deliberately left open for WP-10 to tighten.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lir_version",
+    "module",
+    "items"
+  ],
+  "properties": {
+    "lir_version": {
+      "const": 1
+    },
+    "module": {
+      "type": "string",
+      "minLength": 1
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/definitions/Node"
+              },
+              {
+                "required": [
+                  "site_id"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "Ask",
+                      "Run",
+                      "Spawn",
+                      "Await",
+                      "Verify",
+                      "Complete",
+                      "Budget",
+                      "Allow",
+                      "Checkpoint",
+                      "State"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/definitions/Node"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "Let",
+                      "Var",
+                      "Assign",
+                      "If",
+                      "Match",
+                      "For",
+                      "While",
+                      "Loop",
+                      "Return",
+                      "Break",
+                      "Continue",
+                      "Fail",
+                      "Attempt",
+                      "Retry",
+                      "Parallel",
+                      "Race",
+                      "Lambda",
+                      "Call",
+                      "Field",
+                      "Index",
+                      "Literal",
+                      "Record",
+                      "List",
+                      "Tuple",
+                      "Variant",
+                      "Block"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "Node": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "span",
+        "ty",
+        "effects"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/definitions/Span"
+        },
+        "ty": {
+          "type": "string",
+          "description": "Rendered Leash type of the node's result."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "site_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable effect site identity: module::flow#node@Lline, used as the first component of a journal path pair."
+        }
+      }
+    },
+    "Span": {
+      "type": "object",
+      "description": "Source span. Its exact fields are defined by leash_syntax and tightened by WP-10.",
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "col": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_col": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/traces/verification/v1.schema.json",
+  "title": "Leash verification trace entry",
+  "description": "An Evidence object as defined by docs/06 section 3: the check and requirement it satisfies, the method, result, determinism, confidence, scope, output reference and the repository state and journal sequence it ran against.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "check",
+    "requirement",
+    "method",
+    "result",
+    "deterministic",
+    "confidence",
+    "scope",
+    "at_seq"
+  ],
+  "properties": {
+    "check": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requirement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "test",
+            "typecheck",
+            "lint",
+            "build",
+            "judge",
+            "manual",
+            "diff",
+            "other"
+          ]
+        },
+        "cmd": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "timeout",
+        "skipped",
+        "error"
+      ]
+    },
+    "deterministic": {
+      "type": "boolean"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "high = deterministic sensor, medium = heuristic, low = judge."
+    },
+    "scope": {
+      "type": "string",
+      "description": "What this evidence does not establish."
+    },
+    "output_ref": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "excerpt": {
+      "type": "string"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "effect_id": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "repo_state": {
+      "type": "string"
+    },
+    "at_seq": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    }
+  }
+}

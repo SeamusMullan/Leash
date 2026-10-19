@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Leash Authors
+#
+# H3: the full harness. H2 plus the deterministic check registry, the
+# bug-reproduction, attribution and verification protocols, and the
+# verification report template.
+
+[profile]
+name = "h3"
+
+[artifacts]
+tool_registry = true
+test_command_registry = true
+tool_usage_protocol = true
+project_memory = true
+task_state = true
+context_selection_protocol = true
+check_registry = true
+reproduction_protocol = true
+attribution_protocol = true
+verification_protocol = true
+report_template = true
+
+[system_prompt]
+sections = [
+  "tool_usage",
+  "context_selection",
+  "bug_reproduction",
+  "failure_attribution",
+  "verification",
+]

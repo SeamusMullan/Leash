@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leash.dev/spec/manifest/v1.schema.json",
+  "title": "Leash run manifest",
+  "description": "The manifest of one run at .leash/runs/<run_id>/manifest.json. It records identity, versions, program and input hashes, profile, drivers and repository state so that replay can refuse an incompatible journal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "created_at",
+    "leash_version",
+    "journal_version",
+    "lir_version",
+    "program",
+    "inputs_hash",
+    "seed",
+    "profile",
+    "mode",
+    "drivers",
+    "repo",
+    "parent_run",
+    "forked_at"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "leash_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$"
+    },
+    "journal_version": {
+      "const": 1
+    },
+    "lir_version": {
+      "const": 1
+    },
+    "program": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry",
+        "flow",
+        "lir_hash",
+        "source_hashes"
+      ],
+      "properties": {
+        "entry": {
+          "type": "string",
+          "minLength": 1
+        },
+        "flow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lir_hash": {
+          "$ref": "#/definitions/CasHash"
+        },
+        "source_hashes": {
+          "type": "object",
+          "description": "Package-relative source path to BLAKE3 hash.",
+          "additionalProperties": {
+            "$ref": "#/definitions/CasHash"
+          }
+        }
+      }
+    },
+    "inputs_hash": {
+      "$ref": "#/definitions/CasHash"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "profile": {
+      "type": "string",
+      "pattern": "^h[0-3]$|^[A-Za-z0-9][A-Za-z0-9_.+-]*$",
+      "description": "A built-in H0-H3 profile or a package-defined profile name."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "live",
+        "replay",
+        "fork"
+      ]
+    },
+    "drivers": {
+      "type": "object",
+      "description": "Driver id to version and model list, for every driver used by the run.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "head",
+        "worktree"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "worktree": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Working-copy identifier or snapshot reference; null when the run is not repository-backed."
+        }
+      }
+    },
+    "parent_run": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "forked_at": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/Timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "CasHash": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$"
+    },
+    "Timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    }
+  }
+}
