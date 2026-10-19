@@ -5,6 +5,7 @@
   "license": "Apache-2.0",
   "builtin-baseline": "664933b8d385dfc01f4e0cdff4c7c74e71f6a740",
   "dependencies": [
+    "asio",
     "boost-asio",
     "boost-beast",
     "boost-process",

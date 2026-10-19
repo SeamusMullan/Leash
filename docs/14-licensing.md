@@ -167,6 +167,7 @@ baseline bump. The current set:
 | Dependency | vcpkg port | SPDX identifier |
 |---|---|---|
 | Boost.Asio, Boost.Beast, Boost.Process, Boost.UUID | `boost-asio`, `boost-beast`, `boost-process`, `boost-uuid` | `BSL-1.0` |
+| Asio (standalone) | `asio` | `BSL-1.0` |
 | OpenSSL | `openssl` | `Apache-2.0` |
 | libblake3 | `blake3` | `CC0-1.0 OR Apache-2.0` |
 | valijson | `valijson` | `BSD-2-Clause` |

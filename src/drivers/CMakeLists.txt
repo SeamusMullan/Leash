@@ -5,6 +5,7 @@ find_package(Boost 1.83 REQUIRED COMPONENTS system)
 find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(blake3 CONFIG REQUIRED)
+find_path(LEASH_ASIO_INCLUDE_DIR NAMES asio/awaitable.hpp REQUIRED)
 
 set(LEASH_BLAKE3_TARGET BLAKE3::blake3)
 if(NOT TARGET BLAKE3::blake3 AND TARGET blake3::blake3)
@@ -26,7 +27,8 @@ add_library(leash_drivers STATIC
     spike.cpp)
 
 target_include_directories(leash_drivers PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    ${LEASH_ASIO_INCLUDE_DIR})
 
 target_link_libraries(leash_drivers
     PRIVATE
