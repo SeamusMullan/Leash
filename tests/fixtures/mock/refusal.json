@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "match": { "any": true },
+      "fail": {
+        "kind": "refusal",
+        "category": "cyber",
+        "explanation": "The request asks for offensive tooling."
+      }
+    }
+  ]
+}

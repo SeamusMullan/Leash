@@ -1,0 +1,45 @@
+{
+  "max_tokens": 16000,
+  "messages": [
+    {
+      "content": "Summarise the harness in one paragraph.",
+      "role": "user"
+    }
+  ],
+  "model": "claude-opus-5",
+  "output_config": {
+    "effort": "high",
+    "format": {
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "type": "object"
+      },
+      "type": "json_schema"
+    }
+  },
+  "stream": true,
+  "system": [
+    {
+      "text": "You are Leash.",
+      "type": "text"
+    },
+    {
+      "cache_control": {
+        "type": "ephemeral"
+      },
+      "text": "Return JSON only.",
+      "type": "text"
+    }
+  ],
+  "thinking": {
+    "type": "adaptive"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "model": "mock-large",
+  "entries": [
+    {
+      "match": { "seq": 0 },
+      "response": {
+        "json": [
+          { "name": "Leash", "rationale": "A harness for agents" },
+          { "name": "Hermes", "rationale": "An agent runtime" }
+        ]
+      },
+      "usage": {
+        "input_tokens": 120,
+        "output_tokens": 40,
+        "cache_read_input_tokens": 10,
+        "cache_creation_input_tokens": 5,
+        "cost_usd": 0.001234
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "match": { "seq": 0 },
+      "response": { "text": "only the first call is scripted" }
+    }
+  ]
+}

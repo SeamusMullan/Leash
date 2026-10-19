@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The Leash Authors
 # port	SPDX	read from
+asio	BSL-1.0	vcpkg port manifest
 boost-asio	BSL-1.0	vcpkg port manifest
 boost-beast	BSL-1.0	vcpkg port manifest
 boost-process	BSL-1.0	vcpkg port manifest
