@@ -94,7 +94,10 @@ void render_label(const Diagnostic& diagnostic, const SourceMap& map, const Span
     const std::uint32_t line_start = map.line_start(line);
     const std::uint32_t line_end = map.line_end(line);
 
-    const std::string text = expand_tabs(map.line_text(line));
+    std::string text = expand_tabs(map.line_text(line));
+    while (!text.empty() && (text.back() == ' ' || text.back() == '\t')) {
+        text.pop_back();
+    }
     const std::size_t visual_column =
         expand_tabs(map.source.substr(line_start, start - line_start)).size();
     const std::size_t visual_end =
@@ -103,7 +106,11 @@ void render_label(const Diagnostic& diagnostic, const SourceMap& map, const Span
     const std::size_t width = std::to_string(line + 1).size();
 
     out << gutter(width) << "|\n";
-    out << (line + 1) << " | " << text << '\n';
+    out << (line + 1) << " |";
+    if (!text.empty()) {
+        out << ' ' << text;
+    }
+    out << '\n';
     out << gutter(width) << "| " << std::string(visual_column, ' ') << std::string(carets, '^');
     if (!label.empty()) {
         out << ' ' << label;

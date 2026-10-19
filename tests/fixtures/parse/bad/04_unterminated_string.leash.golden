@@ -1,0 +1,10 @@
+error[E0103]: unterminated string literal
+  --> 04_unterminated_string.leash:5:15
+  |
+5 | let message = "this string never closes
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^ this string is not closed
+error[E0110]: expected an item, found invalid token
+  --> 04_unterminated_string.leash:5:40
+  |
+5 | let message = "this string never closes
+  |                                        ^ expected one of `use`, `let`, `type`, `fn`, `agent`, `task`, `flow`

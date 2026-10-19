@@ -1,0 +1,32 @@
+error[E0100]: 'tool' is not supported yet (WP-07)
+   --> 05_mcp_tools.leash:15:1
+   |
+15 | tool file_issue(title: String, body: String) -> Int ! {tool, net, human} {
+   | ^^^^ 'tool' arrives in WP-07
+   = help: remove this construct or wait for the full grammar
+error[E0101]: expected ']' to close the list
+   --> 05_mcp_tools.leash:24:17
+   |
+24 |   tools: [github.tool("search_code"), file_issue],
+   |                 ^ expected ']' to close the list here
+error[E0101]: expected '}' to close the record literal
+   --> 05_mcp_tools.leash:24:17
+   |
+24 |   tools: [github.tool("search_code"), file_issue],
+   |                 ^ expected '}' to close the record literal here
+error[E0110]: expected an item, found '.'
+   --> 05_mcp_tools.leash:24:17
+   |
+24 |   tools: [github.tool("search_code"), file_issue],
+   |                 ^ expected one of `use`, `let`, `type`, `fn`, `agent`, `task`, `flow`
+error[E0100]: 'allow' is not supported yet (WP-07)
+   --> 05_mcp_tools.leash:33:3
+   |
+33 |   allow  { net: ["api.github.com"], human: true }
+   |   ^^^^^ 'allow' arrives in WP-07
+   = help: remove this construct or wait for the full grammar
+error[E0100]: 'run' is not supported yet (WP-07)
+   --> 05_mcp_tools.leash:37:24
+   |
+37 |   let found: [Flaky] = run scout(task: "Find up to 5 flaky tests in sarah/leash and file an issue for each.")
+   |                        ^^^ 'run' arrives in WP-07

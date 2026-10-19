@@ -1,0 +1,5 @@
+error[E0105]: expected an expression, found 'let'
+  --> 03_missing_expression.leash:6:1
+  |
+6 | let next = 2
+  | ^^^ expected an expression here

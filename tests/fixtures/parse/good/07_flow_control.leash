@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.control
+
+fn classify(value: Int) -> String {
+  if value < 0 {
+    "negative"
+  } else if value == 0 {
+    "zero"
+  } else {
+    "positive"
+  }
+}
+
+flow choose(input: Int) -> Int {
+  let label = classify(input)
+  let adjusted = if label == "zero" {
+    1
+  } else {
+    input
+  }
+  if adjusted > 10 {
+    fail Model("too large")
+  } else {
+    complete adjusted
+  }
+}

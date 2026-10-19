@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.missing_brace
+
+flow unclosed(input: Int) -> Int {
+  let value = 1
+  value

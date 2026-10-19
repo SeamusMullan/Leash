@@ -2,6 +2,7 @@
 # Copyright 2026 The Leash Authors
 find_package(Catch2 3 CONFIG REQUIRED)
 
+add_subdirectory(fuzz)
 add_subdirectory(spec)
 add_subdirectory(syntax)
 add_subdirectory(types)

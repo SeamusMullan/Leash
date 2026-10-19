@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+// A leading line comment before the module declaration.
+
+/// Documentation for the module's type.
+module fixtures.comments
+
+// A line comment between items.
+/* An outer block comment
+   /* with a nested block comment */
+   that closes once. */
+/// Documentation attached to `Tag`.
+type Tag = {
+  // The only field.
+  name: String, // a trailing comment
+}
+
+flow comments(input: { name: String }) -> String {
+  // Before a binding.
+  let value = input.name // after a binding
+  /* Between statements. */
+  value
+}

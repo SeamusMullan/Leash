@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.missing_expression
+
+let answer =
+let next = 2

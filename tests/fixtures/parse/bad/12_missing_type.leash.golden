@@ -1,0 +1,5 @@
+error[E0101]: expected a path segment, found newline
+  --> 12_missing_type.leash:5:14
+  |
+5 | type Broken =
+  |              ^ expected a path segment here

@@ -14,6 +14,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(CTest)
 
+option(LEASH_BUILD_FUZZERS "Build the libFuzzer targets (Clang only)" OFF)
+
 add_library(leash_warnings INTERFACE)
 target_compile_options(leash_warnings INTERFACE
     -Wall -Wextra -Wpedantic -Werror -Wswitch-enum)

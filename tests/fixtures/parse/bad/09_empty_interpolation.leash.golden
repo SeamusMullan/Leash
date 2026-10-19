@@ -1,0 +1,5 @@
+error[E0109]: empty interpolation
+  --> 09_empty_interpolation.leash:5:26
+  |
+5 | let message = "nothing: {}"
+  |                          ^ `{}` has no expression inside

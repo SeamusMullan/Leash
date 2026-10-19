@@ -1,0 +1,39 @@
+error[E0100]: 'require' is not supported yet (WP-07)
+   --> 02_fix_bug.leash:48:3
+   |
+48 |   require {
+   |   ^^^^^^^ 'require' arrives in WP-07
+   = help: remove this construct or wait for the full grammar
+error[E0100]: 'ensure' is not supported yet (WP-07)
+   --> 02_fix_bug.leash:53:3
+   |
+53 |   ensure {
+   |   ^^^^^^ 'ensure' arrives in WP-07
+   = help: remove this construct or wait for the full grammar
+error[E0100]: 'allow' is not supported yet (WP-07)
+   --> 02_fix_bug.leash:72:3
+   |
+72 |   allow {
+   |   ^^^^^ 'allow' arrives in WP-07
+   = help: remove this construct or wait for the full grammar
+error[E0100]: 'state' is not supported yet (WP-07)
+   --> 02_fix_bug.leash:81:3
+   |
+81 |   state {
+   |   ^^^^^ 'state' arrives in WP-07
+   = help: remove this construct or wait for the full grammar
+error[E0100]: 'assignment' is not supported yet (WP-07)
+    --> 02_fix_bug.leash:100:3
+    |
+100 |   state.hypothesis = attr.next_action
+    |   ^^^^^ mutable state arrives in WP-07
+error[E0100]: 'retry' is not supported yet (WP-07)
+    --> 02_fix_bug.leash:103:15
+    |
+103 |   let patch = retry(3, on: Verify, backoff: .None) {
+    |               ^^^^^ 'retry' arrives in WP-07
+error[E0100]: 'tuple patterns' are not supported yet (WP-07)
+    --> 02_fix_bug.leash:122:7
+    |
+122 |   let (r1, r2): (Review, Review) = parallel {
+    |       ^ destructuring patterns arrive in WP-07

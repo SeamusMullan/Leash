@@ -1,0 +1,12 @@
+error[E0100]: 'enum' is not supported yet (WP-07)
+  --> 10_unsupported_items.leash:5:1
+  |
+5 | enum Severity { Low, High }
+  | ^^^^ 'enum' arrives in WP-07
+  = help: remove this construct or wait for the full grammar
+error[E0100]: 'tool' is not supported yet (WP-07)
+  --> 10_unsupported_items.leash:7:1
+  |
+7 | tool lookup(query: String) -> String {
+  | ^^^^ 'tool' arrives in WP-07
+  = help: remove this construct or wait for the full grammar

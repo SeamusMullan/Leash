@@ -1,0 +1,15 @@
+error[E0105]: expected an expression, found 'let'
+  --> 01_two_independent_errors.leash:7:3
+  |
+7 |   let second = 2
+  |   ^^^ expected an expression here
+error[E0106]: expected a newline or ';' after this statement
+  --> 01_two_independent_errors.leash:7:3
+  |
+7 |   let second = 2
+  |   ^^^ add a newline here
+error[E0105]: expected an expression, found '}'
+   --> 01_two_independent_errors.leash:12:1
+   |
+12 | }
+   | ^ expected an expression here

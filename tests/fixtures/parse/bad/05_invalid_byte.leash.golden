@@ -1,0 +1,10 @@
+error[E0104]: invalid or unterminated token
+  --> 05_invalid_byte.leash:5:13
+  |
+5 | let value = @ 1
+  |             ^ cannot tokenise this
+error[E0110]: expected an item, found '1'
+  --> 05_invalid_byte.leash:5:15
+  |
+5 | let value = @ 1
+  |               ^ expected one of `use`, `let`, `type`, `fn`, `agent`, `task`, `flow`

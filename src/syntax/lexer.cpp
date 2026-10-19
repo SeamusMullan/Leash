@@ -3,6 +3,7 @@
 
 #include "leash/syntax/lexer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -244,14 +245,19 @@ class Lexer {
     }
 
     void emit(TokenKind kind, std::size_t start, std::size_t end) {
+        // Defensive clamp: callers compute offsets while scanning and an
+        // unterminated construct must still produce a token instead of
+        // throwing out of `string_view::substr` on malformed input.
+        const std::size_t safe_start = std::min(start, source_.size());
+        const std::size_t safe_end = std::min(std::max(end, safe_start), source_.size());
         Token token;
         token.kind = kind;
         token.span = Span{
             .file = file_,
-            .start = static_cast<std::uint32_t>(start),
-            .end = static_cast<std::uint32_t>(end),
+            .start = static_cast<std::uint32_t>(safe_start),
+            .end = static_cast<std::uint32_t>(safe_end),
         };
-        token.text = source_.substr(start, end - start);
+        token.text = source_.substr(safe_start, safe_end - safe_start);
         if (kind != TokenKind::Newline) {
             token.leading = std::move(pending_);
             pending_.clear();
@@ -356,6 +362,12 @@ class Lexer {
         while (!at_end()) {
             if (scan_string_edge(mode, chunk_start)) {
                 return;
+            }
+            // `{{` and a trailing backslash advance `position_` themselves;
+            // consuming one more byte here would move past the buffer and make
+            // `emit` slice out of range.
+            if (at_end()) {
+                break;
             }
             if (!mode.raw && peek() == '\\') {
                 position_ += (position_ + 1 < source_.size()) ? 2 : 1;

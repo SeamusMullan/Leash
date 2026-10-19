@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.unsupported
+
+enum Severity { Low, High }
+
+tool lookup(query: String) -> String {
+  query
+}
+
+flow kept(input: Int) -> Int {
+  input
+}

@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.calls
+
+use std.drivers
+
+flow calls(input: [String]) -> Int {
+  let model_agent = drivers.anthropic(model: "claude-opus-5", effort: .Medium)
+  let first = input.first()
+  let size = input.filter(x => x != "").len()
+  let combined = math.max(1, math.min(2, 3))
+  let named = format(template: "{first}", values: input)
+  let nested = outer(inner(1, 2), other(flag: true))
+  size + combined
+}

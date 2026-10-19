@@ -512,7 +512,7 @@ class Printer {
 
     void write_lambda(const ast::Lambda& lambda) {
         std::string params;
-        if (lambda.params.size() == 1 && !lambda.parenthesised && !lambda.trailing) {
+        if (lambda.params.size() == 1 && !lambda.parenthesised) {
             params = std::string{lambda.params.front().text};
         } else {
             std::vector<std::string> names;
@@ -633,7 +633,7 @@ class Printer {
     }
 
     void write_call(const ast::Call& call, const std::string& flat) {
-        if (fits(flat)) {
+        if (fits(flat) && trailing_can_flatten(call.trailing)) {
             write(flat);
             return;
         }
@@ -654,7 +654,7 @@ class Printer {
     }
 
     void write_method(const ast::Method& method, const std::string& flat) {
-        if (fits(flat)) {
+        if (fits(flat) && trailing_can_flatten(method.trailing)) {
             write(flat);
             return;
         }
@@ -840,7 +840,7 @@ class Printer {
 
     [[nodiscard]] std::string flat_lambda(const ast::Lambda& lambda) const {
         std::string params;
-        if (lambda.params.size() == 1 && !lambda.parenthesised && !lambda.trailing) {
+        if (lambda.params.size() == 1 && !lambda.parenthesised) {
             params = std::string{lambda.params.front().text};
         } else {
             std::vector<std::string> names;
@@ -851,9 +851,50 @@ class Printer {
             params = "(" + join(names, ", ") + ")";
         }
         if (lambda.trailing) {
+            // A trailing lambda's body is parsed as a block, but the source
+            // form has no inner braces: `f(x) { item => item + 1 }`. Rendering
+            // `block_flat` here would add a second pair of braces that the
+            // parser then reads as a record literal. Callers only take this
+            // flat path when `trailing_can_flatten` says the body is empty or a
+            // single expression statement.
+            if (const auto* block = std::get_if<ast::Block>(&lambda.body->kind)) {
+                if (block->stmts.empty() && !block->tail.has_value()) {
+                    return "{ " + params + " => }";
+                }
+                if (block->stmts.size() == 1 && !block->tail.has_value()) {
+                    if (const auto* stmt = std::get_if<ast::ExprStmt>(&block->stmts.front())) {
+                        return "{ " + params + " => " + expr_flat(*stmt->expr) + " }";
+                    }
+                }
+            }
             return "{ " + params + " => " + expr_flat(*lambda.body) + " }";
         }
         return params + " => " + expr_flat(*lambda.body);
+    }
+
+    /// True when a call's trailing lambda can be printed on one line without
+    /// losing its block structure. Multi-statement and `let` bodies must go
+    /// through `write_lambda`, which emits the statements inside the braces.
+    [[nodiscard]] static bool trailing_can_flatten(const std::optional<ast::ExprPtr>& trailing) {
+        if (!trailing.has_value()) {
+            return true;
+        }
+        const auto* lambda = std::get_if<ast::Lambda>(&(*trailing)->kind);
+        if (lambda == nullptr || !lambda->trailing) {
+            return true;
+        }
+        const auto* block = std::get_if<ast::Block>(&lambda->body->kind);
+        if (block == nullptr) {
+            return true;
+        }
+        if (block->tail.has_value() || !block->trailing.comments.empty()) {
+            return false;
+        }
+        if (block->stmts.empty()) {
+            return true;
+        }
+        return block->stmts.size() == 1 &&
+               std::holds_alternative<ast::ExprStmt>(block->stmts.front());
     }
 
     [[nodiscard]] std::string flat_interp(const ast::Interp& interp) const {

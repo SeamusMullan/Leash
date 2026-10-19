@@ -73,6 +73,37 @@ jobs:
       - run: cmake --build build/asan
       - run: ctest --preset asan
 
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/vcpkg
+          key: vcpkg-fuzz-${{ hashFiles('vcpkg.json') }}
+      - name: Install LLVM
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 19
+          echo "/usr/lib/llvm-19/bin" >> "$GITHUB_PATH"
+      - run: cmake --preset fuzz -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+        env:
+          CC: clang
+          CXX: clang++
+      - run: cmake --build build/fuzz --target leash_lexer_fuzz leash_parser_fuzz
+      - name: Fuzz the lexer for 60 seconds
+        run: build/fuzz/tests/fuzz/leash_lexer_fuzz -max_total_time=60 -rss_limit_mb=2048
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+      - name: Fuzz the parser for 60 seconds
+        run: build/fuzz/tests/fuzz/leash_parser_fuzz -max_total_time=60 -rss_limit_mb=2048
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+
   test:
     strategy:
       fail-fast: false

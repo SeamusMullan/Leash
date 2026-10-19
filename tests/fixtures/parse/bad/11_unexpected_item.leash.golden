@@ -1,0 +1,5 @@
+error[E0110]: expected an item, found 'this'
+  --> 11_unexpected_item.leash:6:1
+  |
+6 | this is not an item
+  | ^^^^ expected one of `use`, `let`, `type`, `fn`, `agent`, `task`, `flow`

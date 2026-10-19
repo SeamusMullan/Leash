@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.effects
+
+agent namer = Agent { driver: drivers.mock(), system: "name things" }
+agent reviewer = Agent { driver: drivers.mock(), system: "review things" }
+
+flow ask_and_fail(input: { name: String, detail: String }) -> String {
+  let one = ask namer("Hello {input.name}")
+  let two = ask reviewer("Review this", temperature: 0.2)
+
+  if len(one) == 0 {
+    fail Model("empty answer")
+  }
+  if input.detail != "" {
+    fail Verify("bad answer", input.detail)
+  }
+
+  complete one
+}

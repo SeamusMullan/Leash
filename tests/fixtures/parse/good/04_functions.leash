@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.functions
+
+use std.io
+
+fn add(left: Int, right: Int = 0) -> Int {
+  left + right
+}
+
+fn shout(message: String, times: Int = 2) -> String ! {io, net} {
+  let repeated = message
+  repeated
+}
+
+pub fn noop() {}

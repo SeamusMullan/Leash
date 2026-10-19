@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.operators
+
+flow calculate(input: Int) -> Bool {
+  let arithmetic = 1 + 2 * 3 - 4 / 2 % 3
+  let grouped = (1 + 2) * 3
+  let negation = -input + 10
+  let comparison = arithmetic <= grouped and negation >= 0
+  let logic = not false and (comparison or input != 0)
+  let chained = 1 + 2 + 3 * 4 * 5 - 6
+  logic and chained > 0
+}

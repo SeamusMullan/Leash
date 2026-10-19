@@ -3,6 +3,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -179,11 +180,14 @@ TEST_CASE("lexer survives a megabyte of arbitrary bytes", "[syntax][lexer]") {
         state = (state * 1664525U) + 1013904223U;
         byte = static_cast<char>(state >> 24U);
     }
+    const auto started = std::chrono::steady_clock::now();
     const std::vector<Token> tokens = lex_text(bytes);
+    const auto elapsed = std::chrono::steady_clock::now() - started;
     REQUIRE_FALSE(tokens.empty());
     CHECK(tokens.back().kind == TokenKind::Eof);
     CHECK(tokens.back().span.start == bytes.size());
     CHECK(tokens.back().span.end == bytes.size());
+    CHECK(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() < 1000);
 }
 
 TEST_CASE("lexer reports unterminated strings and invalid bytes as Error", "[syntax][lexer]") {

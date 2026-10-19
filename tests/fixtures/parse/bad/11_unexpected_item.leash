@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.unexpected_item
+
+let good = 1
+this is not an item
+let after = 2

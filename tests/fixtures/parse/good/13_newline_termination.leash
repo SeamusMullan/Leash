@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.newlines
+
+flow termination(input: { text: String, flag: Bool }) -> Int {
+  let total = 1 +
+    2 +
+    3
+
+  let trimmed = input.text
+    .trim()
+    .len()
+
+  let items = [1, 2, 3]
+    .filter(x => x > 1)
+
+  // A '(' on a new line does not continue a call: this is two statements.
+  let value = trimmed
+  (1)
+
+  let chosen = if input.flag {
+    1
+  }
+  else {
+    2
+  }
+
+  let first = 1; let second = 2;
+  total + trimmed + len(items) + value + chosen + first + second
+}

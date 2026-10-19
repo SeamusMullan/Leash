@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.two_errors
+
+flow broken(input: Int) -> Int {
+  let first =
+  let second = 2
+}
+
+flow other(input: Int) -> Int {
+  let value = 1 +
+}

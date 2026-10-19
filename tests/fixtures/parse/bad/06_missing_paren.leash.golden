@@ -1,0 +1,10 @@
+error[E0101]: expected ')' to close the argument list
+  --> 06_missing_paren.leash:7:3
+  |
+7 |   value
+  |   ^^^^^ expected ')' to close the argument list here
+error[E0106]: expected a newline or ';' after this statement
+  --> 06_missing_paren.leash:7:3
+  |
+7 |   value
+  |   ^^^^^ add a newline here
