@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "match": { "seq": 0 },
+      "response": { "text": "first call" }
+    },
+    {
+      "match": { "any": true },
+      "response": { "text": "later call" }
+    }
+  ]
+}

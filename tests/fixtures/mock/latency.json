@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "match": { "any": true },
+      "latency_ms": 5000,
+      "response": { "text": "too late" }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "match": { "any": true },
+      "fail": { "kind": "http", "status": 429, "body": "slow down", "times": 2 }
+    },
+    {
+      "match": { "any": true },
+      "response": { "text": "recovered" }
+    }
+  ]
+}
