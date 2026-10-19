@@ -3,17 +3,17 @@
 Milestone: M2 · Size: M · Status: see `docs/status.md`
 
 ## Goal
-After this WP, `leash-syntax` parses the entire language in `spec/grammar.ebnf`
+After this WP, `leash_syntax` parses the entire language in `spec/grammar.ebnf`
 and formats it idempotently, with comments preserved. All five programs in
-`examples/` parse and round-trip. The parser never panics on any input. This is
+`examples/` parse and round-trip. The parser never crashes on any input. This is
 the foundation every later front-end WP (types, effects, LIR, LSP) builds on.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `spec/grammar.ebnf` (all of it; note the hard/contextual keyword lists at the end)
 - `docs/02-language-spec.md` §1, §2 (esp. §2.4 literals, §2.6 statement termination), §4
 - `docs/01-language-tour.md` (for intent behind each construct)
-- `docs/03-runtime-architecture.md` §3 (front end design: logos lexer, recursive descent + Pratt, error recovery, trivia)
+- `docs/03-runtime-architecture.md` §3 (front end design: hand-written lexer, recursive descent + Pratt, error recovery, trivia)
 - The WP-03 code and its tests (the v0 subset you are extending)
 
 ## Scope
@@ -24,7 +24,7 @@ the foundation every later front-end WP (types, effects, LIR, LSP) builds on.
 - Error recovery at item and statement boundaries; multiple diagnostics per file; diagnostics carry spans and codes `E01xx`.
 - Formatter: complete coverage, 2-space indent, 100-column soft limit, trailing commas in multi-line lists/records/args, comment and doc-comment preservation through trivia, blank-line preservation (max 1), stable output for triple-quoted strings. `leash fmt` and `leash fmt --check`.
 - AST equality ignoring spans (`ast::eq_modulo_spans`) for round-trip tests.
-- Fuzz/property test: random token soups and random byte strings must not panic and must terminate within a bound.
+- Fuzz/property test: random token soups and random byte strings must not crash and must terminate within a bound.
 - Update `spec/grammar.ebnf` with an "Ambiguity resolutions" section recording every decision below and any new one you make.
 
 ## Out of scope
@@ -33,41 +33,99 @@ the foundation every later front-end WP (types, effects, LIR, LSP) builds on.
 - Tree-sitter or TextMate grammars (WP-23).
 
 ## Interfaces
-```rust
-// crate leash-syntax
-pub fn lex(src: &str, file: FileId) -> Vec<Token>;                       // never fails; error tokens carry spans
-pub fn parse_str(src: &str, file: FileId) -> ParseResult;               // ParseResult { program: ast::Program, diagnostics: Vec<Diagnostic> }
-pub fn parse_file(path: &Path) -> io::Result<ParseResult>;
-pub fn format_program(p: &ast::Program) -> String;                       // uses trivia stored in the AST
-pub fn format_source(src: &str, file: FileId) -> Result<String, Vec<Diagnostic>>;
-pub mod ast {
-    pub struct Program { pub module: Option<Path>, pub items: Vec<Item>, pub trivia: Trivia }
-    pub enum Item { Use, Const, Type, Enum, Fn, Tool, Agent, Memory, Task, Flow, Test }   // each a struct with NodeId, Span, doc: Option<Doc>
-    pub enum Stmt { Let, Var, Assign, State, Checkpoint, Expr }
-    pub enum Expr { Literal, Path, Record, NamedRecord, List, Tuple, Variant, Block, If, Match, For, While, Loop,
-                    Return, Break, Continue, Fail, Attempt, Retry, Parallel, Race, Ask, Run, Spawn, Await, Verify,
-                    Complete, Budget, Allow, Lambda, Binary, Unary, Field, MethodCall, Call, Index, OptChain, Interp }
-    pub enum Pattern { Wildcard, Bind, Literal, Tuple, List { items, rest }, Record, Variant, FailureKind }
-    pub enum Type { Prim, Named, List, Tuple, Record, Fn, Optional }
-    pub struct TaskSection …; pub struct Check { name, method: Expr, expect: Option<Expr>, within: Option<Expr>, on_timeout: Option<Expr> }
-    pub fn eq_modulo_spans(a: &Program, b: &Program) -> bool;
-}
-pub struct Diagnostic { pub code: &'static str, pub severity: Severity, pub message: String, pub labels: Vec<(Span, String)>, pub help: Option<String> }
+```cpp
+// src/syntax/include/leash/syntax/ast.hpp
+namespace leash::syntax::ast {
+
+using Item = std::variant<UseDecl, ConstDecl, TypeDecl, EnumDecl, FnDecl, ToolDecl,
+                          AgentDecl, MemoryDecl, TaskDecl, FlowDecl, TestDecl>;
+using Stmt = std::variant<LetStmt, VarStmt, AssignStmt, StateStmt, CheckpointStmt,
+                          ExprStmt>;
+using Expr = std::variant<LiteralExpr, PathExpr, RecordExpr, NamedRecordExpr, ListExpr,
+                          TupleExpr, VariantExpr, BlockExpr, IfExpr, MatchExpr, ForExpr,
+                          WhileExpr, LoopExpr, ReturnExpr, BreakExpr, ContinueExpr, FailExpr,
+                          AttemptExpr, RetryExpr, ParallelExpr, RaceExpr, AskExpr, RunExpr,
+                          SpawnExpr, AwaitExpr, VerifyExpr, CompleteExpr, BudgetExpr,
+                          AllowExpr, LambdaExpr, BinaryExpr, UnaryExpr, FieldExpr,
+                          MethodCallExpr, CallExpr, IndexExpr, OptChainExpr, InterpExpr>;
+using Pattern = std::variant<WildcardPattern, BindPattern, LiteralPattern, TuplePattern,
+                             ListPattern, RecordPattern, VariantPattern, FailureKindPattern>;
+using Type = std::variant<PrimType, NamedType, ListType, TupleType, RecordType, FnType,
+                          OptionalType>;
+
+struct Program {
+    std::optional<Path> module;
+    std::vector<Item> items;
+    Trivia trivia;
+};
+
+struct ListPattern {
+    std::vector<Pattern> items;
+    std::optional<std::string> rest;
+};
+
+struct TaskSection { /* name, span, body */ };
+struct Check {
+    std::string name;
+    Expr method;
+    std::optional<Expr> expect;
+    std::optional<Expr> within;
+    std::optional<Expr> on_timeout;
+};
+
+bool eq_modulo_spans(const Program& a, const Program& b);
+
+}  // namespace leash::syntax::ast
+
+namespace leash::syntax {
+
+// src/syntax/include/leash/syntax/lexer.hpp
+std::vector<Token> lex(std::string_view src, FileId file);              // never fails; error tokens carry spans
+
+// src/syntax/include/leash/syntax/diagnostic.hpp
+struct Diagnostic {
+    std::string_view code;                   // static literal, e.g. "E0102"
+    Severity severity;
+    std::string message;
+    std::vector<std::pair<Span, std::string>> labels;
+    std::optional<std::string> help;
+};
+
+// src/syntax/include/leash/syntax/parser.hpp
+struct ParseResult {
+    ast::Program program;
+    std::vector<Diagnostic> diagnostics;
+};
+
+ParseResult parse_str(std::string_view src, FileId file);
+std::expected<ParseResult, std::error_code> parse_file(const std::filesystem::path& path);
+
+// src/syntax/include/leash/syntax/format.hpp
+std::string format_program(const ast::Program& p);                      // uses trivia stored in the AST
+std::expected<std::string, std::vector<Diagnostic>> format_source(std::string_view src,
+                                                                 FileId file);
+
+}  // namespace leash::syntax
 ```
-Every node has `id: NodeId` (u32, unique per file, assigned in pre-order) and `span: Span`.
+Every variant alternative is a struct carrying `NodeId id` (`std::uint32_t`,
+unique per file, assigned in pre-order) and `Span span`; item structs also
+carry `std::optional<Doc> doc`. Alternatives take the suffix of their variant
+(`ListExpr` beside `ListType` and `ListPattern`) because C++ has no per-enum
+variant namespace.
 
 ## Deliverables
-- `crates/leash-syntax/src/{lexer,parser,ast,format,trivia}.rs` with the API above.
+- `src/syntax/{lexer,parser,ast,format,trivia}.cpp` plus headers in
+  `src/syntax/include/leash/syntax/`, exposing the API above.
 - `spec/grammar.ebnf` updated with the ambiguity section.
-- Tests: `tests/parse_examples.rs` (all `examples/*.leash` parse with zero diagnostics), `tests/format_roundtrip.rs` (format twice, compare; parse(format(x)) ≡ x modulo spans), `tests/errors.rs` (snapshot tests with `insta` for ≥ 15 malformed inputs, each yielding a diagnostic with the expected code and a recovered parse of the remainder), `tests/fuzz.rs` (proptest, ≥ 2 000 cases in CI, more locally).
+- Tests: `tests/syntax/parse_examples_test.cpp` (all `examples/*.leash` parse with zero diagnostics), `tests/syntax/format_roundtrip_test.cpp` (format twice, compare; parse(format(x)) ≡ x modulo spans), `tests/syntax/errors_test.cpp` (golden snapshot tests with `expect_golden` for ≥ 15 malformed inputs, each yielding a diagnostic with the expected code and a recovered parse of the remainder), `tests/syntax/fuzz_parser.cpp` (libFuzzer target) and `tests/syntax/parser_property_test.cpp` (RapidCheck `rc::check`, ≥ 2 000 cases in CI, more locally).
 - CLI: `leash fmt`, `leash fmt --check`, `leash check --syntax`.
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-syntax` → all green, including the proptest suite.
-- `for f in examples/*.leash; do leash check --syntax "$f"; done` → exit 0 for all five, no output.
-- `leash fmt examples/ && git diff --exit-code examples/` → formatting the (already formatted) examples changes nothing; commit a formatted version first if needed.
-- `leash fmt --check examples/` → exit 0; introduce a formatting error → exit 1 with the file name.
-- `printf 'fn f( { let = = ) }\n' | leash check --syntax -` → exit 2, at least one `E01xx` diagnostic with a span, no panic.
+- `ctest --preset dev -L syntax` → all green, including the property suite.
+- `for f in examples/*.leash; do build/dev/src/cli/leash check --syntax "$f"; done` → exit 0 for all five, no output.
+- `build/dev/src/cli/leash fmt examples/ && git diff --exit-code examples/` → formatting the (already formatted) examples changes nothing; commit a formatted version first if needed.
+- `build/dev/src/cli/leash fmt --check examples/` → exit 0; introduce a formatting error → exit 1 with the file name.
+- `printf 'fn f( { let = = ) }\n' | build/dev/src/cli/leash check --syntax -` → exit 2, at least one `E01xx` diagnostic with a span, no crash.
 - `spec/grammar.ebnf` contains a section "Ambiguity resolutions" listing at least the items under Notes.
 
 ## Notes and pitfalls
@@ -80,10 +138,14 @@ Decisions already made; record them in the grammar's ambiguity section:
 - Contextual keywords (`input`, `state`, `check`, …) are identifiers outside their positions; write the parser so that `let state = 1` is legal at expression level but `state {` at the top of a flow body opens the state block.
 - Triple-quoted string indent stripping: drop the first line if it is empty after `"""`; compute the minimum indentation over non-blank lines; strip it; drop a trailing newline immediately before `"""`. Interpolations do not affect indentation computation.
 - Interpolation lexing must handle nested braces and nested strings inside `{…}`: `"a {f("x", {b: 1})} c"`.
-- Use `logos` for the lexer and a hand-written parser; do not introduce a parser generator (ADR-0001 crate list).
+- The lexer is hand-written; do not introduce a parser generator (ADR-0011).
+- C++ cannot prove exhaustiveness over variant alternatives: give each AST
+  variant one visitor header (`ItemVisitor`, `StmtVisitor`, `ExprVisitor`,
+  `PatternVisitor`, `TypeVisitor`) and a unit test that visits every
+  alternative (ADR-0011).
 - Formatter must never change semantics: assert `eq_modulo_spans` in tests, not string equality only.
 
-Diagnostic codes owned by this WP (keep the table in `crates/leash-syntax/src/diag.rs` in sync):
+Diagnostic codes owned by this WP (keep the table in `src/syntax/diag.cpp` in sync):
 
 | Code | Meaning |
 |---|---|

@@ -22,5 +22,5 @@ enough to be read alone by an implementer of the relevant work package.
 | 14-licensing | everyone; mandatory before creating any source file |
 | adr/ | decisions; add one when you make one |
 | research/ | why the design is the way it is |
-| subagents/ | how to pick up and deliver work; `shared-interfaces.md` is normative for cross-crate types |
+| subagents/ | how to pick up and deliver work; `shared-interfaces.md` is normative for cross-module types |
 | status.md | where things stand |

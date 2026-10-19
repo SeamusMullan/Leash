@@ -5,11 +5,11 @@ Milestone: M0 · Size: M · Status: see `docs/status.md`
 ## Goal
 Turn the prose contracts in the design documents into JSON Schema and TOML
 files that the runtime, trace layer, CLI and tests validate against, embedded
-in a `leash-spec` crate. Later WPs code against these files; a change to a
+in the `leash_spec` module. Later WPs code against these files; a change to a
 format is a change to a schema first.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/04-determinism-and-replay.md` §3 (journal entry), §9 (manifest)
 - `docs/11-episode-package-and-eval.md` §1 (eight traces), §2
 - `docs/06-verification-and-evidence.md` §3 (Evidence), §6 (outcome labels)
@@ -56,8 +56,12 @@ format is a change to a schema first.
   comment that the API reference lists that figure and it must be re-verified.
 - `spec/README.md`: versioning rules (`journal_version`, `lir_version`,
   trace schema `$id` with version), how to bump, and the rule "schema first".
-- Crate `crates/leash-spec`: embeds the files with `include_str!`, compiles
-  them once (`std::sync::LazyLock`), and exposes validators and typed loaders.
+- `src/spec`: embeds every file under `spec/` and `std/prices.toml` at build
+  time. A CMake script turns each file into a raw string literal in a generated
+  `.cpp`; each schema is parsed once on first use into a `valijson::Schema`
+  held in a function-local `static const`, which C++ initialises thread-safely.
+  Exposes the validators and typed loaders below. Headers live at
+  `src/spec/include/leash/spec/*.hpp`.
 - Fixtures: `spec/fixtures/journal/hello.jsonl` (a plausible 6-entry journal
   for `examples/01_hello.leash`: started/ok pairs for one `llm.ask`, a
   `complete`), `spec/fixtures/journal/invalid.jsonl`, one valid fixture per
@@ -68,46 +72,134 @@ Producing these files at run time (WP-04, WP-06). Tightening per-node LIR
 fields (WP-10). Price table auto-update. Non-USD currencies.
 
 ## Interfaces
-```rust
-pub mod journal { pub fn validate_line(line: &str) -> Result<(), SpecError>; pub const VERSION: u32 = 1; }
-pub mod manifest { pub fn validate(v: &serde_json::Value) -> Result<(), SpecError>; }
-pub mod lir { pub fn validate(v: &serde_json::Value) -> Result<(), SpecError>; pub const VERSION: u32 = 1; }
-pub mod traces { pub enum TraceKind { Action, Tool, Context, Verification, Attribution, Intervention, Entropy, Outcome }
-                 pub fn validate(kind: TraceKind, v: &serde_json::Value) -> Result<(), SpecError>; }
-pub mod profiles { #[derive(serde::Deserialize)] pub struct Profile { pub name: String, pub artifacts: std::collections::BTreeMap<String, bool>, pub system_prompt_sections: Vec<String> }
-                   pub fn load(name: &str) -> Result<Profile, SpecError>;  // "h0".."h3" embedded; else read <name>.toml from cwd }
-pub mod prices { pub struct ModelPrice { pub input: f64, pub output: f64, pub cache_read: f64, pub cache_write: f64 }
-                 pub struct PriceTable;  impl PriceTable { pub fn default_embedded() -> Self; pub fn with_overrides(self, toml: &str) -> Result<Self, SpecError>;
-                 pub fn price_for(&self, model: &str) -> Option<&ModelPrice>; pub fn cost_usd(&self, model: &str, usage: &Usage) -> Option<Money>; } }
-pub struct Usage { pub input_tokens: u64, pub output_tokens: u64, pub cache_read_input_tokens: u64, pub cache_creation_input_tokens: u64 }
-pub struct Money(i64);      // exact micro-USD; see docs/subagents/shared-interfaces.md for the full impl
-#[derive(thiserror::Error, Debug)] pub enum SpecError { Schema(String), Parse(String), UnknownProfile(String) }
+```cpp
+// src/spec/include/leash/spec/money.hpp
+class Money {
+public:
+    static Money usd(double v);
+    static Money micros(std::int64_t v);
+    std::optional<Money> checked_sub(Money other) const;
+    std::string display() const;            // "$3.1200"
+
+private:
+    std::int64_t micros_ = 0;               // exact micro-USD
+};
+
+// src/spec/include/leash/spec/usage.hpp
+struct Usage {
+    std::uint64_t input_tokens = 0;
+    std::uint64_t output_tokens = 0;
+    std::uint64_t cache_read_input_tokens = 0;
+    std::uint64_t cache_creation_input_tokens = 0;
+    std::optional<Money> cost;              // set when the backend reports cost
+    std::string model;
+
+    std::uint64_t total_tokens() const;
+};
+
+// src/spec/include/leash/spec/spec_error.hpp
+struct SchemaError { std::string message; std::string json_pointer; };
+struct ParseError { std::string message; };
+struct UnknownProfileError { std::string name; };
+using SpecError = std::variant<SchemaError, ParseError, UnknownProfileError>;
+
+// src/spec/include/leash/spec/journal.hpp
+namespace leash::spec::journal {
+inline constexpr std::uint32_t kVersion = 1;
+std::expected<void, SpecError> validate_line(std::string_view line);
+}
+
+// src/spec/include/leash/spec/manifest.hpp
+namespace leash::spec::manifest {
+std::expected<void, SpecError> validate(const nlohmann::json& value);
+}
+
+// src/spec/include/leash/spec/lir.hpp
+namespace leash::spec::lir {
+inline constexpr std::uint32_t kVersion = 1;
+std::expected<void, SpecError> validate(const nlohmann::json& value);
+}
+
+// src/spec/include/leash/spec/traces.hpp
+namespace leash::spec::traces {
+enum class TraceKind {
+    action, tool, context, verification, attribution, intervention, entropy, outcome
+};
+std::expected<void, SpecError> validate(TraceKind kind, const nlohmann::json& value);
+}
+
+// src/spec/include/leash/spec/profile.hpp
+namespace leash::spec::profiles {
+enum class ArtifactKey { tool_registry, test_command_registry, memory,
+                         task_state, check_registry, report_template };
+enum class ProtocolKey { tool_usage, context_selection, bug_reproduction,
+                         failure_attribution, verification };
+
+struct Profile {
+    std::string name;
+    std::set<ArtifactKey> artifacts;        // canonical order
+    std::vector<ProtocolKey> protocols;
+};
+
+// "h0".."h3" are embedded; any other name is read as <name>.toml from the
+// current directory.
+std::expected<Profile, SpecError> load(std::string_view name);
+}
+
+// src/spec/include/leash/spec/prices.hpp
+namespace leash::spec::prices {
+struct ModelPrice {
+    double input = 0.0;
+    double output = 0.0;
+    double cache_read = 0.0;
+    double cache_write = 0.0;
+};
+
+class PriceTable {
+public:
+    static PriceTable default_embedded();
+    std::expected<PriceTable, SpecError> with_overrides(std::string_view toml) const;
+    std::optional<ModelPrice> price_for(std::string_view model) const;
+    std::optional<Money> cost_usd(std::string_view model, const Usage& usage) const;
+};
+}
 ```
-`SpecError::Schema` messages must include the JSON pointer of the first failure.
+`SchemaError::json_pointer` is the RFC 6901 pointer of the first failure, for
+example `/usage/input_tokens`. `Usage` and `Money` are the canonical shapes of
+`docs/subagents/shared-interfaces.md`; that file wins if this block drifts.
 
 ## Deliverables
 - The files under `spec/`, `spec/traces/`, `spec/profiles/`, `spec/fixtures/`, `std/prices.toml`, `spec/README.md`.
-- `crates/leash-spec` with the API above and tests.
+- `src/spec` with the API above and tests.
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-spec` passes with tests that: every line of
+- `ctest --preset dev -L spec` passes with tests that: every line of
   `spec/fixtures/journal/hello.jsonl` validates; `invalid.jsonl` fails with a
-  pointer to the offending field; each trace fixture validates against its
-  schema and fails against a different one; `profiles::load("h3")` exposes all
-  eleven artifacts and `load("h0")` none; `cost_usd("claude-opus-5", 1_000_000 in / 100_000 out / 0 / 0)` equals `$7.50`;
-  `cost_usd` for an unknown model returns `None`.
+  `SchemaError` whose `json_pointer` names the offending field; each trace
+  fixture validates against its schema and fails against a different one;
+  `profiles::load("h3")` exposes all eleven artifacts and `load("h0")` none;
+  `prices::cost_usd("claude-opus-5", Usage{.input_tokens = 1'000'000,
+  .output_tokens = 100'000})` equals `$7.50`; `cost_usd` for an unknown model
+  returns `std::nullopt`.
 - `python3 -c "import json,glob;[json.load(open(f)) for f in glob.glob('spec/**/*.json', recursive=True)]"` exits 0 (all files are valid JSON).
 - Schemas declare `$schema: https://json-schema.org/draft/2020-12/schema` and a versioned `$id`.
 - `spec/README.md` explains how to bump each version.
 
 ## Notes and pitfalls
-- Use the `jsonschema` crate's compiled validators; compile once per process.
+- Use valijson: parse each schema once into a `valijson::Schema` and reuse the
+  validator. Do not re-read or re-parse the schema per line or per entry.
 - Keep enumerations in one place per schema (`$defs`) so the runtime can
-  reuse them via `serde` enums with identical spellings.
+  reuse them through `nlohmann::json` `from_json` overloads with identical
+  spellings.
 - Money must not be a float in schemas: represent `cost_usd` as a decimal
-  string (`"0.2450"`); the Rust type is micro-dollar integer.
+  string (`"0.2450"`); the C++ `Money` type is a micro-dollar integer.
 - Timestamps are RFC 3339 UTC with millisecond precision.
 - Profile files are data on purpose (docs/05 §3): packages may add their own.
+- valijson reports a failure message and the failing subschema, not an RFC 6901
+  pointer. `SchemaError::json_pointer` is derived by a path-recording
+  validation pass in `leash_spec`: walk object properties in order, validate
+  each subschema, and return the pointer of the first failure. Do not rely on
+  valijson to report a pointer.
 
 ## Dependencies
 Hard: WP-01. Soft: none.

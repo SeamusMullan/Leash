@@ -10,7 +10,7 @@ This closes the "attribution before recovery" loop and makes the journal a
 tool for experimentation, not only for audit.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/02-language-spec.md` §4.7 (checkpoints), §9 (failures), §10.4
 - `docs/04-determinism-and-replay.md` §3–§7 (journal, replay modes, fork, snapshots), §9 (manifest)
 - `docs/05-harness-model.md` §1 row 5 (task state), §4 (taxonomy)
@@ -20,13 +20,14 @@ tool for experimentation, not only for audit.
 
 ## Scope
 - `Failure { kind, message, data, site, cause }` as a runtime value and as a
-  `Control::Fail` variant in the interpreter's control channel; `fail
+  `Control::Fail` alternative in the interpreter's control channel; `fail
   Kind(...)`, `fail Kind(msg, data)`, `fail expr` (re-raise, keeps `site`).
 - Constructors for every runtime-raised kind (docs/02 §9.6):
   `Failure::budget`, `::permission`, `::tool`, `::model`, `::context`,
   `::verify`, `::replay`, `::feedback`, `::recovery`, `::entropy`, `::unknown`;
-  every runtime error path uses them (audit `leash-runtime` and
-  `leash-effects` for stray `anyhow!` errors reaching programs).
+  every runtime error path uses them (audit `leash_runtime` and
+  `leash_effects` for stray `Failure { kind: Unknown }` constructions and for
+  exceptions reaching programs).
 - `attempt { } recover Kind as e { } … recover _ as e { }`: arms tried in
   order; unmatched failures propagate; a recover arm that fails sets
   `cause` to the original.
@@ -63,31 +64,78 @@ tool for experimentation, not only for audit.
 - Interactive "pick a checkpoint" UX.
 
 ## Interfaces
-```rust
-pub enum FailureKind { Context, Tool, Feedback, Verify, Recovery, Entropy, Model, Budget, Permission, Replay, Unknown }
-pub struct Failure { pub kind: FailureKind, pub message: String, pub data: Option<serde_json::Value>,
-                     pub site: Option<Site>, pub cause: Option<Box<Failure>> }
-pub enum Control { Fail(Failure), Return(Value), Break(Option<Value>), Continue, Complete(Value) }
+```cpp
+// src/spec/include/leash/spec/failure_kind.hpp
+enum class FailureKind { context, tool, feedback, verify, recovery, entropy,
+                         model, budget, permission, replay, unknown };
 
-pub struct CheckpointEntry { pub name: String, pub seq: u64, pub state: serde_json::Value,
-                             pub budget_consumed: BudgetTotals, pub snapshot_ref: Option<String> }
-pub trait Snapshotter { async fn snapshot(&self, run: &RunId, seq: u64) -> Result<String, Failure>;   // WP-11
-                        async fn restore(&self, run: &RunId, snapshot_ref: &str) -> Result<(), Failure>; }
-pub enum RunMode { Live, Replay { until: Option<u64> }, Resume, Fork { at_seq: u64 } }               // WP-04 extends
+// src/runtime/include/leash/runtime/failure.hpp
+struct Failure {
+    FailureKind kind;
+    std::string message;
+    std::optional<nlohmann::json> data;
+    Site site;
+    std::unique_ptr<Failure> cause;     // null when there is no cause
+};
+
+// src/runtime/include/leash/runtime/control.hpp
+struct Control {
+    struct Fail     { Failure failure; };
+    struct Return   { Value value; };
+    struct Break    { std::optional<Value> value; };
+    struct Continue {};
+    struct Complete { Value value; };
+
+    std::variant<Fail, Return, Break, Continue, Complete> value;
+};
+
+// src/runtime/include/leash/runtime/checkpoint.hpp
+struct CheckpointEntry {
+    std::string name;
+    std::uint64_t seq = 0;
+    nlohmann::json state;
+    BudgetTotals budget_consumed;
+    std::optional<std::string> snapshot_ref;
+};
+
+class Snapshotter {
+public:
+    virtual ~Snapshotter() = default;
+
+    // WP-11
+    virtual asio::awaitable<std::expected<std::string, Failure>>
+    snapshot(const RunId& run, std::uint64_t seq) = 0;
+    virtual asio::awaitable<std::expected<void, Failure>>
+    restore(const RunId& run, std::string_view snapshot_ref) = 0;
+};
+
+// src/runtime/include/leash/runtime/run_mode.hpp     (WP-04 extends)
+struct RunMode {
+    struct Live {};
+    struct Replay { std::optional<std::uint64_t> until; };
+    struct Resume {};
+    struct Fork   { std::uint64_t at_seq = 0; };
+
+    std::variant<Live, Replay, Resume, Fork> value;
+};
 ```
 CLI: `leash fork`, `leash diff` as in docs/10 §1. Manifest fields `parent_run`,
 `forked_at: { name, seq }`.
 
+`Failure` is the canonical shape of `docs/subagents/shared-interfaces.md`; that
+file wins if this block drifts. Each variant above gets one `std::visit`
+visitor in its own header and one unit test that visits every alternative.
+
 ## Deliverables
-- `crates/leash-runtime/src/{failure.rs, recover.rs, retry.rs, state.rs, checkpoint.rs, fork.rs}`
-- `crates/leash-cli/src/cmd/{fork.rs, diff.rs}`
+- `src/runtime/{failure.cpp, recover.cpp, retry.cpp, state.cpp, checkpoint.cpp, fork.cpp}` with headers under `src/runtime/include/leash/runtime/`
+- `src/cli/cmd/{fork.cpp, diff.cpp}`
 - Tests: unit tests for arm ordering, re-raise and cause chains, retry counts
   and backoff journal entries, duplicate checkpoint error; integration
-  `tests/integration/fork.rs` (see criteria).
+  `tests/integration/fork_test.cpp` (see criteria).
 - Docs: `docs/04-determinism-and-replay.md` §4 updated if the fork rules change.
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-runtime -p leash-cli` passes.
+- `ctest --preset dev -L 'runtime|cli'` passes.
 - Program A: `checkpoint "cp"` then an `ask` then `complete`. Run live with
   the mock driver. `leash fork <run> --at cp --file B.leash` where B changes
   only code after the checkpoint: the new run completes, its journal contains

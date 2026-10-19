@@ -34,14 +34,16 @@ flow FixEmptyPassword(input) -> Patch {
 
 ## Status
 
-Design phase (September 2026). No code yet. The language specification, runtime
-architecture, grammar, ten architecture decision records and 26 work-package
-briefs are in `docs/`. Every design decision is settled and the first work
-package is ready to implement; `docs/status.md` tracks progress.
+Design phase (September 2026, updated 2026-10-19). No code yet. The language
+specification, runtime architecture, grammar, eleven architecture decision
+records and 27 work-package briefs are in `docs/`. Every design decision is
+settled and the first work package is ready to implement; `docs/status.md`
+tracks progress.
 
-Implementation language is Rust, chosen over Go and TypeScript because its only
-gap, a hand-written Anthropic HTTP client, is a one-time cost rather than a
-recurring one (`docs/adr/0001-implementation-language.md`).
+Implementation language is C++23 with Boost.Asio, built with CMake and vcpkg.
+Sarah chose C++ because it is her fluent language, and Boost.Asio as the async
+substrate (`docs/adr/0011-implementation-language-cpp.md`). The first drivers
+are Hermes and Claude Code (`docs/adr/0004-drivers.md`).
 
 Start with `docs/00-vision.md`, then `docs/01-language-tour.md`, then
 `docs/12-roadmap.md`.
@@ -53,13 +55,13 @@ Start with `docs/00-vision.md`, then `docs/01-language-tour.md`, then
 | `docs/00-vision.md` | problem, thesis, goals, non-goals |
 | `docs/01-language-tour.md` | the language by example |
 | `docs/02-language-spec.md` · `spec/grammar.ebnf` | semantics and grammar |
-| `docs/03-runtime-architecture.md` | compiler pipeline, interpreter, effect gateway, crates |
+| `docs/03-runtime-architecture.md` | compiler pipeline, interpreter, effect gateway, modules |
 | `docs/04-determinism-and-replay.md` | journal, effect ids, replay/resume/fork |
 | `docs/05-harness-model.md` | the eleven harness responsibilities, profiles H0–H3 |
 | `docs/06-verification-and-evidence.md` | checks, evidence, `complete`, outcome labels |
 | `docs/07-budgets-and-capabilities.md` | budgets, capability sets, sandbox, threat model |
 | `docs/08-multi-agent.md` | roles, patterns, topologies, shared state |
-| `docs/09-drivers-and-tools.md` | Anthropic API, Claude Code, Codex, mock, MCP, built-in tools |
+| `docs/09-drivers-and-tools.md` | Hermes, Claude Code, Anthropic API, Codex, mock, MCP, built-in tools |
 | `docs/10-cli-and-tooling.md` | `leash` commands, manifest, run directory, editor support |
 | `docs/11-episode-package-and-eval.md` | traces, metrics, suites |
 | `docs/12-roadmap.md` | milestones, work packages, risks, open decisions |

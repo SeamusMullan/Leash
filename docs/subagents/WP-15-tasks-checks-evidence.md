@@ -11,7 +11,7 @@ repoA fixture and the mock driver, `examples/02_fix_bug.leash` runs end to end
 and yields `autonomous_verified_success`.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/06-verification-and-evidence.md` (all sections)
 - `docs/02-language-spec.md` §7 (tasks, flows, checks, `complete`), §9.6
 - `docs/11-episode-package-and-eval.md` §1–§2
@@ -25,9 +25,10 @@ and yields `autonomous_verified_success`.
   type, evaluate `require` predicates before the flow body (false or failing
   predicate → `Failure { kind: Context, message: "<predicate source>" }`),
   install root `BudgetScope`/`CapScope` from `budget`/`allow`/`deny`.
-- Check model: `CheckMethod::{Shell, Test, Fn, Lint, Judge}` with result
-  records bound by field name for `expect`; defaults per docs/06 §2 table;
-  `within` (default 10m) and `on_timeout` (`.Fail` default, `.Record`, `.Skip`).
+- Check model: `CheckMethod` with `Shell`, `Test`, `Fn`, `Lint` and `Judge`
+  alternatives; result records bound by field name for `expect`; defaults per
+  docs/06 §2 table; `within` (default 10 min) and `on_timeout` (`.Fail`
+  default, `.Record`, `.Skip`).
 - `verify ensure`, `verify ["a", "b"]`, `verify check(...) by ...` (inline).
   Each executed check appends an `Evidence` record (docs/06 §3 fields incl.
   `deterministic`, `confidence`, `scope`, `repo_state`, `at_seq`, `effect_id`)
@@ -45,16 +46,17 @@ and yields `autonomous_verified_success`.
   `confidence: "low"`; a task-level `judge_policy` (default `.Advisory`) caps
   the label at `unverified_success`; `.AcceptAsEvidence` lets judge evidence
   satisfy `complete` and the report states the lower assurance.
-- Pre-complete hook registry: `PreCompleteHook` trait; `complete` runs hooks
-  before condition checks; a hook may append evidence or fail. WP-21 registers
-  the entropy audit; this WP ships a no-op default and the config key
+- Pre-complete hook registry: `PreCompleteHook` abstract class; `complete` runs
+  hooks before condition checks; a hook may append evidence or fail. WP-21
+  registers the entropy audit; this WP ships a no-op default and the config key
   `[verify] entropy_audit = "warn" | "fail" | "off"`.
-- Outcome label computation per docs/06 §6 in `leash-trace`, with a
+- Outcome label computation per docs/06 §6 in `leash_trace`, with a
   `justification` array naming the evidence ids, interventions and audit
   items that decided it.
-- `report.md` generation from `std/templates/report.md` (a minimal template
-  engine; `minijinja` is acceptable) with the table, limitations, attribution,
-  interventions, entropy and budget sections shown in docs/06 §7.
+- `report.md` generation from `std/templates/report.md` with a hand-written
+  minimal renderer (section substitution and fixed tables only; no template
+  dependency) with the table, limitations, attribution, interventions, entropy
+  and budget sections shown in docs/06 §7.
 - Fixture `tests/fixtures/repoA`: a small Node.js login app using the built-in
   `node --test` runner (no npm install): `src/controller.js`, `src/validator.js`
   (accepts empty passwords: the defect), `src/auth.js`, `src/ui.js`,
@@ -63,6 +65,7 @@ and yields `autonomous_verified_success`.
   Plus `tests/fixtures/repoA/evaluator/checks.toml` (hidden checks) and a mock
   driver script `tests/fixtures/repoA/mock/coder.json` whose scripted `run`
   edits `src/validator.js` and adds a test through the tool layer.
+
 
 ## Out of scope
 - The entropy audit heuristics (WP-21).
@@ -74,31 +77,87 @@ and yields `autonomous_verified_success`.
   (TAP) parser to WP-11's module if missing and note it in the PR.
 
 ## Interfaces
-```rust
-pub enum CheckMethod { Shell { cmd: String }, Test { cmd: String, runner: Option<Runner> }, Lint { cmd: Option<String> },
-                       Fn { closure: LirClosure, args: Vec<Value> }, Judge { agent: AgentRef, prompt: String } }
-pub struct Check { pub name: String, pub method: CheckMethod, pub expect: Option<LirClosure>, pub within: Duration, pub on_timeout: OnTimeout }
-pub enum OnTimeout { Fail, Record, Skip }
-pub enum EvidenceResult { Pass, Fail, Timeout, Skipped, Error }
-pub struct Evidence { pub check: String, pub requirement: String, pub method: serde_json::Value, pub result: EvidenceResult,
-                      pub deterministic: bool, pub confidence: Confidence, pub scope: Option<String>, pub output_ref: Option<CasRef>,
-                      pub excerpt: String, pub duration_ms: u64, pub effect_id: EffectId, pub repo_state: Option<String>, pub at_seq: u64 }
-pub struct EvidenceSet { /* by check name, newest last */ }
-pub trait PreCompleteHook: Send + Sync { async fn run(&self, ctx: &CompleteCtx) -> Result<Vec<Evidence>, Failure>; }
-pub enum OutcomeLabel { AutonomousVerifiedSuccess, AssistedVerifiedSuccess, UnverifiedSuccess, Failed, UnsafeInvalid }
-pub struct Outcome { pub label: OutcomeLabel, pub justification: Vec<String>, pub budget: BudgetTotals, pub metrics: serde_json::Value }
+```cpp
+// src/spec/include/leash/spec/check.hpp
+struct CheckMethod {
+    struct Shell { std::string cmd; };
+    struct Test  { std::string cmd; std::optional<Runner> runner; };
+    struct Lint  { std::optional<std::string> cmd; };
+    struct Fn    { LirClosure closure; std::vector<Value> args; };
+    struct Judge { AgentRef agent; std::string prompt; };
+
+    std::variant<Shell, Test, Lint, Fn, Judge> value;
+};
+
+enum class OnTimeout { fail, record, skip };
+enum class EvidenceResult { pass, fail, timeout, skipped, error };
+
+struct Check {
+    std::string name;
+    CheckMethod method;
+    std::optional<LirClosure> expect;
+    std::chrono::nanoseconds within = std::chrono::minutes(10);
+    OnTimeout on_timeout = OnTimeout::fail;
+};
+
+// src/trace/include/leash/trace/evidence.hpp
+struct Evidence {
+    std::string check;
+    std::string requirement;
+    nlohmann::json method;                  // the serialised CheckMethod that ran
+    EvidenceResult result;
+    bool deterministic = false;
+    Confidence confidence;
+    std::optional<std::string> scope;
+    std::optional<PayloadRef> output_ref;
+    std::string excerpt;
+    std::uint64_t duration_ms = 0;
+    EffectId effect_id;
+    std::optional<std::string> repo_state;
+    std::uint64_t at_seq = 0;
+};
+
+class EvidenceSet {                         // by check name, newest last
+public:
+    void append(Evidence evidence);
+    std::span<const Evidence> by_check(std::string_view check) const;
+};
+
+class PreCompleteHook {                     // called on the run's strand
+public:
+    virtual ~PreCompleteHook() = default;
+    virtual asio::awaitable<std::expected<std::vector<Evidence>, Failure>>
+    run(const CompleteCtx& ctx) = 0;
+};
+
+enum class OutcomeLabel {
+    autonomous_verified_success, assisted_verified_success, unverified_success,
+    failed, unsafe_invalid
+};
+
+struct Outcome {
+    OutcomeLabel label;
+    std::vector<std::string> justification;
+    BudgetTotals budget;
+    nlohmann::json metrics;
+};
 ```
-Files: `traces/verification.jsonl` (one `Evidence` per line), `traces/outcome.json`, `artifacts/report.md`, `artifacts/patch.diff`.
+`Check`, `CheckMethod`, `OnTimeout` and `EvidenceResult` belong to `leash_spec`;
+`Evidence`, `EvidenceSet`, `PreCompleteHook` and `Outcome` belong to
+`leash_trace`. `Runner`, `Confidence`, `AgentRef`, `LirClosure`, `EffectId` and
+`BudgetTotals` are already defined; do not redefine them here.
+
+Files: `traces/verification.jsonl` (one `Evidence` JSON object per line), `traces/outcome.json`, `artifacts/report.md`, `artifacts/patch.diff`.
 
 ## Deliverables
-- `crates/leash-runtime/src/{task.rs, verify.rs, complete.rs, freshness.rs}`
-- `crates/leash-trace/src/{outcome.rs, report.rs}`, `std/templates/report.md`
-- `tests/fixtures/repoA/**` and `tests/integration/fix_bug_repoa.rs`
+- `src/runtime/{task.cpp, verify.cpp, complete.cpp, freshness.cpp}` with headers under `src/runtime/include/leash/runtime/`
+- `src/trace/{outcome.cpp, report.cpp}`, `std/templates/report.md`
+- `tests/fixtures/repoA/**` and `tests/integration/fix_bug_repoa_test.cpp`
 - Docs: `docs/06-verification-and-evidence.md` updated with the `judge_policy`
   syntax chosen (see pitfalls) and any field added to `Evidence`.
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-runtime -p leash-trace` passes with unit tests
+- `ctest --preset dev -L 'runtime|trace'` passes with unit tests
   for: default predicates per method; `on_timeout` variants; freshness (an
   `fs.write` after `verify` makes `complete` fail with a message naming the
   stale check); the five `complete` conditions each failing in isolation.

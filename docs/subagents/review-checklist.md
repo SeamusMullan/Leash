@@ -16,10 +16,11 @@ Use for every WP pull request. One line per finding: `path:line: severity: probl
 6. **Errors**: failures carry the right `FailureKind`; diagnostics have spans.
 7. **Tests**: acceptance criteria have corresponding tests; live-then-replay
    round trip exists for runtime changes; golden journals updated deliberately
-   (`--update-golden` in a separate commit).
-8. **Dependencies**: new crates justified; no `unsafe`; clippy clean; shared
-   types come from the crate named in `docs/subagents/shared-interfaces.md`
-   rather than being redefined locally.
+   (`UPDATE_GOLDEN=1` in a separate commit).
+8. **Dependencies**: new dependencies justified; no raw owning pointers;
+   `clang-format` and `clang-tidy` clean; shared types come from the module
+   named in `docs/subagents/shared-interfaces.md` rather than being redefined
+   locally.
 9. **Docs**: user-facing behaviour documented; `docs/status.md` updated.
 10. **Licensing**: every new commentable file carries the two-line SPDX header;
     new dependencies are on the allowlist; vendored code keeps upstream notices

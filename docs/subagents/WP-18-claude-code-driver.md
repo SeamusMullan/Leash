@@ -12,13 +12,13 @@ accounts cost and usage, and post-checks the working-copy diff. The same
 this driver.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/09-drivers-and-tools.md` §1 (contract, common rules), §3 (flag mapping, limitations)
 - `docs/07-budgets-and-capabilities.md` §2.3 (translation table, post-hoc diff check), §5 (what cannot be enforced)
 - `docs/03-runtime-architecture.md` §8.1 (per-run MCP server), §9
 - `docs/04-determinism-and-replay.md` §3, §5 (driver notes, cancellation status)
 - `docs/adr/0004-drivers.md`
-- WP-13 (DriverEvent/EventSink, budget accounting), WP-14 (`leash mcp-serve`, MCP config), WP-12
+- WP-11 (working copy, sandbox), WP-14 (`leash mcp-serve`, MCP config), WP-12 (capability translation)
 
 ## Scope
 - Verify every flag against `claude --help` on the installed version before
@@ -80,40 +80,117 @@ this driver.
 - Codex (WP-19), Managed Agents (M10).
 
 ## Interfaces
-```rust
-pub struct ClaudeCodeDriver { pub model: Option<String>, pub effort: Option<Effort>, pub permission_mode: PermissionMode,
-                              pub extra_flags: Vec<String>, pub binary: PathBuf /* default "claude" */ }
-impl Driver for ClaudeCodeDriver { /* ask, run, caps() with structured_output=true, tools=true, sessions=true, cost_reporting=true */ }
+```cpp
+// src/drivers/include/leash/drivers/claude_code/driver.hpp
+enum class PermissionMode { AcceptEdits, Auto, BypassPermissions, Manual, DontAsk, Plan };
 
-pub mod flags { pub fn caps_to_tool_flags(caps: &CapSet, available_tools: &[String]) -> (Vec<String> /*allowed*/, Vec<String> /*disallowed*/); }
-pub mod events { pub enum ClaudeEvent { Init {..}, Assistant {..}, User {..}, Result {..}, Unknown(serde_json::Value) }
-                 pub fn parse_line(line: &str) -> Result<ClaudeEvent, ParseError>; }
-// shared with WP-19 (create here, WP-19 extracts if it lands first):
-pub mod subprocess { pub struct JsonlChild; pub async fn spawn_jsonl(cmd: Command, env: EnvPolicy) -> Result<JsonlChild, DriverError>;
-                     pub fn scrub_env(allow: &[String], extra: &[(&str, String)]) -> HashMap<String, String>;
-                     pub async fn cancel(child: &mut JsonlChild, grace: Duration); }
+class ClaudeCodeDriver final : public Driver {
+public:
+    std::optional<std::string> model;
+    std::optional<Effort> effort;
+    PermissionMode permission_mode = PermissionMode::DontAsk;
+    std::vector<std::string> extra_flags;
+    std::filesystem::path binary = "claude";
+
+    DriverId id() const override;                 // name + model + config hash + `claude --version`
+    DriverCaps caps() const override;             // structured_output, tools, sessions, cost_reporting all true
+    asio::awaitable<std::expected<AskResponse, DriverError>>
+    ask(const AskRequest& request, DriverCtx& ctx) override;
+    asio::awaitable<std::expected<RunResponse, DriverError>>
+    run(const RunRequest& request, DriverCtx& ctx, EventSink& sink) override;
+};
+
+namespace claude_code::flags {
+struct ToolFlags {
+    std::vector<std::string> allowed;
+    std::vector<std::string> disallowed;
+};
+ToolFlags caps_to_tool_flags(const CapSet& caps, const std::vector<std::string>& available_tools);
+}  // namespace claude_code::flags
+
+namespace claude_code::events {
+struct Init { std::string session_id; std::vector<std::string> tools; std::string model; };
+struct Assistant { nlohmann::json message; };
+struct User { nlohmann::json message; };
+struct Result {
+    std::string subtype;
+    std::string text;
+    std::optional<nlohmann::json> structured_output;
+    std::optional<Usage> usage;
+    std::optional<Money> total_cost_usd;
+    std::uint32_t num_turns = 0;
+    std::chrono::nanoseconds duration{};
+    std::string session_id;
+};
+struct Unknown { nlohmann::json value; };
+
+using ClaudeEvent = std::variant<Init, Assistant, User, Result, Unknown>;
+// ClaudeEventVisitor is declared beside the variant with one operator() per
+// alternative; tests reuse it and visit every alternative (ADR-0011).
+std::expected<ClaudeEvent, ParseError> parse_line(std::string_view line);
+}  // namespace claude_code::events
+
+// Shared with WP-19 (create here; WP-19 extracts it if it lands first):
+// src/drivers/include/leash/drivers/subprocess.hpp
+struct EnvPolicy {
+    std::vector<std::string> allow;                          // names kept from the parent environment
+    std::vector<std::pair<std::string, std::string>> extra;  // values added after scrubbing
+};
+
+class JsonlChild {                                            // RAII: terminates and reaps the child
+public:
+    JsonlChild(JsonlChild&&) noexcept;
+    ~JsonlChild();
+
+    asio::awaitable<std::expected<std::optional<std::string>, DriverError>> read_line();  // nullopt at EOF
+    std::optional<int> exit_code() const;
+
+private:
+    boost::process::v2::process process_;
+    asio::readable_pipe stdout_;
+    asio::streambuf buffer_;
+};
+
+asio::awaitable<std::expected<JsonlChild, DriverError>>
+spawn_jsonl(asio::any_io_executor executor, const std::filesystem::path& executable,
+            const std::vector<std::string>& args, const EnvPolicy& env);
+
+std::map<std::string, std::string>
+scrub_env(const std::vector<std::string>& allow,
+          const std::vector<std::pair<std::string, std::string>>& extra);
+
+asio::awaitable<std::expected<void, DriverError>>
+cancel(JsonlChild& child, std::chrono::nanoseconds grace);
+// TODO(port): Asio has no line codec; decide whether the hand-written
+// `asio::streambuf` splitter (partial line across reads, CRLF) is a member of
+// `JsonlChild` or a reusable `LineReader` type.
 ```
 Per-run files: `<run>/mcp.json`, `<run>/claude-settings.json`.
 
 ## Deliverables
-- `crates/leash-drivers/src/claude_code/{mod.rs, flags.rs, events.rs, run.rs}`, `crates/leash-drivers/src/subprocess.rs`
-- Fixtures: `crates/leash-drivers/tests/fixtures/claude_code/*.jsonl` (recorded streams: init, a
+- `src/drivers/claude_code/{driver.cpp, flags.cpp, events.cpp, run.cpp}` with
+  headers under `src/drivers/include/leash/drivers/claude_code/`, plus
+  `src/drivers/subprocess.cpp` and `src/drivers/include/leash/drivers/subprocess.hpp`
+- Fixtures: `tests/drivers/fixtures/claude_code/*.jsonl` (recorded streams: init, a
   three-tool-call run, a denied tool, a structured result, a `max_budget` stop)
-- Tests: event parsing per fixture; flag mapping table tests; a fake `claude`
-  shell script in `tests/support/fake_claude.sh` that replays a fixture, used
-  for end-to-end driver tests without the real CLI; `#[ignore]` live test.
+- Tests in `tests/drivers/claude_code_test.cpp`, registered in
+  `tests/drivers/CMakeLists.txt`: event parsing per fixture; flag mapping table
+  tests; a fake `claude` shell script in `tests/support/fake_claude.sh` that
+  replays a fixture, used for end-to-end driver tests without the real CLI; a
+  live test carrying the CTest label `network` and guarded on
+  `LEASH_TEST_NETWORK`.
 - `leash doctor` section for Claude Code.
 - Docs: `docs/09-drivers-and-tools.md` §3 corrected to the verified flag set and event schema.
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-drivers` passes using the fake CLI; the
+- `ctest --preset dev -R leash_drivers` passes using the fake CLI; the
   end-to-end test asserts three child `tool` entries, one `llm.run` parent
   with `usage` and `cost_usd`, and that a fixture edit outside `fs.write`
   globs is reverted and journaled as `Permission`.
 - Flag mapping: `allow { fs.read: "**", fs.write: ["src/**"], shell: ["npm test*"], net: [] }`
   yields `--allowedTools Read Glob Grep Edit Write "Bash(npm test*)"` and
   `--disallowedTools WebFetch WebSearch …` (exact list from the test).
-- `LEASH_LIVE=1 cargo nextest run -p leash-drivers --run-ignored all claude_code_live`
+- `LEASH_TEST_NETWORK=1 ctest --preset dev -L network -R claude_code_live`
   runs `examples/02_fix_bug.leash` on `tests/fixtures/repoA` with the real CLI
   and reaches `complete` (label may be `autonomous_verified_success` or
   `unverified_success` depending on the model; the test asserts the journal
@@ -140,7 +217,7 @@ Per-run files: `<run>/mcp.json`, `<run>/claude-settings.json`.
   approved at run start.
 
 ## Dependencies
-Hard: WP-13 (event/budget plumbing), WP-14 (MCP server). Soft: WP-17 (profile sections).
+Hard: WP-11 (working copy, sandbox), WP-14 (MCP server). Soft: WP-17 (profile sections).
 
 ## Estimated size
 M (2–4 days).

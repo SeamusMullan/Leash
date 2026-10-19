@@ -9,7 +9,7 @@ failure, 130 interrupted.
 | Command | Purpose |
 |---|---|
 | `leash new <name> [--template fix-bug\|triage\|review]` | scaffold a package: `leash.toml`, `flows/main.leash`, `prompts/`, `.gitignore` for `.leash/runs` |
-| `leash check [paths] [--strict] [--explain-effects] [--json]` | parse, resolve, type, effect and capability check; prints diagnostics (miette style) |
+| `leash check [paths] [--strict] [--explain-effects] [--json]` | parse, resolve, type, effect and capability check; prints diagnostics with spans through the hand-written renderer in `src/syntax` |
 | `leash fmt [paths] [--check]` | format in place / verify formatting |
 | `leash ir <file> [--flow X] [--pretty]` | dump LIR JSON |
 | `leash run <file> [--flow X] [--input <json\|@file>] [--profile h0..h3] [--driver name=override] [--gate deny\|approve\|fail] [--reuse <run\|all>] [--seed N] [--budget key=value…] [--dry-run]` | execute; prints run id, progress, outcome; writes the episode package |
@@ -27,6 +27,14 @@ failure, 130 interrupted.
 | `leash doc [--format md\|json] [--out dir]` | extract `///` doc comments from `pub` items of a package (or `std`) into a reference; used to build the stdlib reference on the docs site |
 | `leash lsp` | start the language server (stdio) |
 | `leash doctor` | check drivers (`claude`, `codex` versions, API key presence), sandbox prerequisites, price table freshness |
+
+Commands for the implementation itself are CMake's, not `leash`'s:
+`cmake --preset dev && cmake --build build/dev` builds, `ctest --preset dev`
+runs the Catch2 cases registered with CTest, `clang-format --dry-run --Werror`
+checks formatting, and `clang-tidy -p build/dev` runs static analysis over the
+compile database. `just check` runs the format check, clang-tidy and ctest.
+`leash fmt` formats Leash source and `leash test` runs Leash programs; neither
+one formats or tests the C++ sources.
 
 ## 2. Package manifest `leash.toml`
 
@@ -93,9 +101,9 @@ keep_days = 30
 
 ## 5. Editor support
 
-- LSP (`leash-lsp`): diagnostics (compile), hover (type + effect set + inferred
-  caps), go-to-definition, document formatting, code lens "Run flow" that
-  invokes the CLI.
+- LSP (`leash_lsp`, hand-written JSON-RPC 2.0 over stdio): diagnostics (compile),
+  hover (type + effect set + inferred caps), go-to-definition, document
+  formatting, code lens "Run flow" that invokes the CLI.
 - VS Code extension in `editors/vscode/`: TextMate grammar, LSP client,
   journal viewer (webview reading `traces/`).
 - Tree-sitter grammar in `editors/tree-sitter-leash/` (post-v1).

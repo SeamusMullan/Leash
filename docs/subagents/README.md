@@ -1,6 +1,6 @@
 # Working on Leash as a Subagent
 
-This directory holds one brief per work package (WP). A brief is a
+This directory holds one brief per work package (WP-01 … WP-27). A brief is a
 self-contained assignment: an agent (Claude Code, Codex, or a human) should be
 able to read the brief plus the documents it links and deliver the package
 without further instruction. If a brief is wrong or incomplete, fix the brief
@@ -9,10 +9,10 @@ in the same change.
 ## Before you start
 
 1. Read `CLAUDE.md` at the repository root (conventions, commands, definition
-   of done) and `docs/14-licensing.md` (file headers, crate metadata,
+   of done) and `docs/14-licensing.md` (file headers, package metadata,
    dependency allowlist).
 2. Read `docs/00-vision.md`, skim `docs/13-glossary.md`, and read
-   `docs/subagents/shared-interfaces.md` (normative: which crate owns which
+   `docs/subagents/shared-interfaces.md` (normative: which module owns which
    shared type). If your brief sketches a type that file also defines, that
    file wins.
 3. Read the brief for your WP and every document listed under "Read first".
@@ -28,17 +28,19 @@ in the same change.
 - Keep the design documents true. If you must deviate from a spec, update the
   spec in the same PR and explain why in the PR description and, if it is a
   real decision, in a new ADR (`docs/adr/`).
-- Every crate you touch must pass `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`
-  and `cargo nextest run` (or `cargo test`).
+- The tree must stay green: `cmake --preset dev && cmake --build build/dev`,
+  `clang-format --dry-run --Werror`, `clang-tidy` over the compile database
+  (`build/dev/compile_commands.json`) and `ctest --preset dev`.
 - Tests are part of scope. A WP without the tests named in its acceptance
   criteria is not done.
 - Prefer small commits with conventional messages (`feat(runtime): …`,
   `fix(parser): …`, `docs(spec): …`).
-- Do not add dependencies beyond those named in the brief or ADR-0001 without
+- Do not add dependencies beyond those named in the brief or ADR-0011 without
   writing one line of justification in the PR.
-- No `unsafe`. No network in unit tests. Integration tests that need an API
-  key or a CLI must be `#[ignore]`d with a reason and runnable with
-  `cargo nextest run --run-ignored all` locally.
+- No raw owning pointers and no manual `new` or `delete`; every handle is RAII.
+  No network in unit tests. Integration tests that need an API key or a CLI
+  carry the CTest label `network` with a reason and run locally with
+  `LEASH_TEST_NETWORK=1 ctest --preset dev -L network`.
 
 ## When you finish
 

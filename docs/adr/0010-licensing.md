@@ -3,7 +3,7 @@
 Status: accepted (2026-09-12).
 
 ## Context
-Leash needs a licence before WP-01 can create `LICENSE` and crate metadata. Two
+Leash needs a licence before WP-01 can create `LICENSE` and package metadata. Two
 goals were considered. The first was preventing companies from using Leash
 internally without disclosing it. The second was patent hygiene: an explicit
 patent grant from contributors and a defence against patent aggression.

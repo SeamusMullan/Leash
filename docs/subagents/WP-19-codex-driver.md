@@ -11,7 +11,7 @@ applies. This proves the driver abstraction against a second, independently
 designed agent CLI.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/09-drivers-and-tools.md` §1, §4
 - `docs/07-budgets-and-capabilities.md` §2.3 (Codex column), §5
 - `docs/adr/0004-drivers.md`
@@ -41,9 +41,10 @@ designed agent CLI.
   code), file changes, reasoning summaries, and the final turn event with
   usage. Map to `DriverEvent`; command executions and file changes become
   child `tool` entries; usage charged to the budget scope.
-- Extract the shared module `leash_drivers::subprocess` from WP-18 if it did
-  not already: `spawn_jsonl`, `scrub_env`, `cancel`, a line reader that
-  tolerates non-JSON lines (logged, not fatal).
+- Extract the shared subprocess helpers from WP-18 if it did not already
+  (target `leash_drivers`, header `leash/drivers/subprocess.hpp`):
+  `spawn_jsonl`, `scrub_env`, `cancel`, a line reader that tolerates non-JSON
+  lines (logged, not fatal).
 - Environment: scrubbed to the `env` allowlist plus what Codex needs to
   authenticate (`OPENAI_API_KEY` or `CODEX_HOME` auth store); `CODEX_HOME`
   pointed at `<run>/codex-home` with a generated minimal `config.toml` so user
@@ -60,36 +61,68 @@ designed agent CLI.
   with `unknown` cost (tokens counted, cost `null`).
 
 ## Interfaces
-```rust
-pub struct CodexDriver { pub model: Option<String>, pub profile: Option<String>, pub sandbox_override: Option<SandboxMode>,
-                         pub extra_config: Vec<(String, String)>, pub binary: PathBuf /* default "codex" */ }
-impl Driver for CodexDriver { /* caps(): structured_output=true, tools=true, sessions=false, cost_reporting=false */ }
-pub mod events { pub enum CodexEvent { ThreadStarted{..}, TurnStarted, ItemCompleted(Item), TurnCompleted{ usage: Option<Usage> }, Unknown(serde_json::Value) }
-                 pub fn parse_line(line: &str) -> Result<CodexEvent, ParseError>; }
-pub fn sandbox_for(caps: &CapSet) -> SandboxMode;   // read-only | workspace-write | (full only via explicit policy)
+```cpp
+// src/drivers/include/leash/drivers/codex/driver.hpp
+enum class SandboxMode { ReadOnly, WorkspaceWrite, DangerFullAccess };
+
+class CodexDriver final : public Driver {
+public:
+    std::optional<std::string> model;
+    std::optional<std::string> profile;
+    std::optional<SandboxMode> sandbox_override;
+    std::vector<std::pair<std::string, std::string>> extra_config;
+    std::filesystem::path binary = "codex";
+
+    DriverId id() const override;
+    DriverCaps caps() const override;   // structured_output=true, tools=true, sessions=false, cost_reporting=false
+    asio::awaitable<std::expected<AskResponse, DriverError>>
+    ask(const AskRequest& request, DriverCtx& ctx) override;
+    asio::awaitable<std::expected<RunResponse, DriverError>>
+    run(const RunRequest& request, DriverCtx& ctx, EventSink& sink) override;
+};
+
+namespace codex::events {
+struct ThreadStarted { std::string thread_id; };
+struct TurnStarted {};
+struct ItemCompleted { Item item; };
+struct TurnCompleted { std::optional<Usage> usage; };
+struct Unknown { nlohmann::json value; };
+
+using CodexEvent = std::variant<ThreadStarted, TurnStarted, ItemCompleted, TurnCompleted, Unknown>;
+// CodexEventVisitor is declared beside the variant with one operator() per
+// alternative; tests reuse it and visit every alternative (ADR-0011).
+std::expected<CodexEvent, ParseError> parse_line(std::string_view line);
+}  // namespace codex::events
+
+std::expected<SandboxMode, DriverError>
+sandbox_for(const CapSet& caps);   // read-only | workspace-write; full only via explicit policy
 ```
 Per-run files: `<run>/codex-home/config.toml`, `<run>/codex-schema.json`, `<run>/codex-last.txt`.
 
 ## Deliverables
-- `crates/leash-drivers/src/codex/{mod.rs, flags.rs, events.rs, run.rs}`
-- Fixtures: `crates/leash-drivers/tests/fixtures/codex/*.jsonl` (recorded: a run with two
+- `src/drivers/codex/{driver.cpp, flags.cpp, events.cpp, run.cpp}` with headers
+  under `src/drivers/include/leash/drivers/codex/`
+- Fixtures: `tests/drivers/fixtures/codex/*.jsonl` (recorded: a run with two
   command executions and one file change; a structured final message; a sandbox denial)
-- `tests/support/fake_codex.sh` replaying fixtures; `#[ignore]` live test.
+- Tests in `tests/drivers/codex_test.cpp`, registered in
+  `tests/drivers/CMakeLists.txt`; `tests/support/fake_codex.sh` replaying
+  fixtures; a live test carrying the CTest label `network` and guarded on
+  `LEASH_TEST_NETWORK`.
 - Docs: `docs/09-drivers-and-tools.md` §4 corrected to the verified flags and event names.
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-drivers` passes with the fake CLI: the run
+- `ctest --preset dev -R leash_drivers` passes with the fake CLI: the run
   test asserts two child `tool` entries of kind `shell` and one of kind
   `fs.write`, usage charged, structured final answer parsed, and an
   out-of-scope file change reverted and journaled as `Permission`.
 - `sandbox_for` unit tests: no writes → `read-only`; writes → `workspace-write`;
   full access without gate approval → error, never `danger-full-access`.
-- `LEASH_LIVE=1 cargo nextest run -p leash-drivers --run-ignored all codex_live`
+- `LEASH_TEST_NETWORK=1 ctest --preset dev -L network -R codex_live`
   runs `examples/02_fix_bug.leash` on `tests/fixtures/repoA` with the real
   CLI to `complete` (journal shape asserted, not the label).
 - `leash doctor` reports the Codex version and missing flags by name.
 - The `subprocess` module has no Claude- or Codex-specific code and both
-  drivers use it (a grep in CI enforces `use crate::subprocess`).
+  drivers use it (a grep in CI enforces `#include <leash/drivers/subprocess.hpp>`).
 
 ## Notes and pitfalls
 - Codex `--json` event names change between releases; the parser must keep

@@ -3,21 +3,22 @@
 Milestone: M7 · Size: L · Status: see `docs/status.md`
 
 ## Goal
-The `std` package exists: every name listed in `docs/02` §12 resolves, is typed and works; the multi-agent patterns in `docs/08` §3 are implemented in Leash source with explicit convergence criteria and tests; the entropy audit, capability presets and role presets ship; and native functions are bound through one registry so that `leash-types` (signatures) and `leash-runtime` (implementations) agree by construction.
+The `std` package exists: every name listed in `docs/02` §12 resolves, is typed and works; the multi-agent patterns in `docs/08` §3 are implemented in Leash source with explicit convergence criteria and tests; the entropy audit, capability presets and role presets ship; and native functions are bound through one registry so that `leash_types` (signatures) and `leash_runtime` (implementations) agree by construction.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/02-language-spec.md` §4.4 (UFCS), §5.5 (built-in effects), §6 (agents), §12 (stdlib surface)
 - `docs/05-harness-model.md` §2 (caps presets, tool hooks), §4 (failure kinds)
 - `docs/06-verification-and-evidence.md` §2 (check methods), §7 (report template), §10 (entropy heuristics)
 - `docs/08-multi-agent.md` §2–§4
 - `docs/09-drivers-and-tools.md` §7 (tools), §8 (prices)
 - `docs/10-cli-and-tooling.md` §6 (`test` declarations)
-- `docs/03-runtime-architecture.md` §2 (`leash-std`, `std/`)
+- `docs/03-runtime-architecture.md` §2 (`leash_std`, `std/`)
 
 ## Scope
-- **Native registry.** `crates/leash-std` defines `NativeFn { name, signature, effects, f }` registered with `inventory::submit!` through a `#[leash_native(name = "std.core.len", sig = "fn len<T>(xs: [T]) -> Int")]` attribute macro (crate `leash-std-macros`). `signature` is Leash type syntax parsed by `leash-syntax` at startup; a mismatch between signature arity and the Rust implementation is a startup panic in debug builds and a unit test in CI. `leash_std::signatures()` feeds the type checker (WP-08 provides `TypeEnv::register_native`); `leash_std::natives()` feeds the interpreter's call dispatch (WP-04 provides `Interpreter::register_native`).
-- **Leash sources** under `std/`, embedded at build time (`include_dir!`) and exposed as `leash_std::sources()`; the loader compiles them into the implicit `std` package before user code.
+- **Native registry.** `src/std` defines `NativeFn { name, signature, effects, f }`, declared with the `LEASH_NATIVE("std.core.len", "fn len<T>(xs: [T]) -> Int")` macro and collected into one explicit registration table in `src/std/registry.cpp`. `signature` is Leash type syntax parsed by `leash_syntax` at startup; a mismatch between signature arity and the C++ implementation is a debug-build assertion and a unit test in CI. `leash_std::signatures()` feeds the type checker (WP-08 provides `TypeEnv::register_native`); `leash_std::natives()` feeds the interpreter's call dispatch (WP-04 provides `Interpreter::register_native`).
+  TODO(port): C++ has no attribute macro and no link-time self-registration; decide between the explicit table and a linker-section registry.
+- **Leash sources** under `std/`, embedded at build time by a CMake custom command that renders the tree into `std_sources.cpp` and exposed as `leash_std::sources()`; the loader compiles them into the implicit `std` package before user code.
 - `std.core`: everything in `docs/02` §12 (`len range min max abs to_string parse_int parse_json to_json hash usd`; list, string and option methods) as natives with UFCS-visible signatures. Method resolution for built-in types goes through the same signature table (`fn contains(s: String, needle: String) -> Bool` is callable as `s.contains(needle)`).
 - `std.drivers`: `anthropic`, `claude_code`, `codex`, `managed_agents` (constructor only), `mock` constructors returning opaque `Driver` values, with typed option enums: `Effort { Low, Medium, High, XHigh, Max }`, `PermissionMode { AcceptEdits, DontAsk, Plan, BypassPermissions }`, `Sandbox { ReadOnly, WorkspaceWrite, DangerFullAccess }`.
 - `std.tools`: bindings for `fs.*`, `shell`, `test`, `git.*`, `http.*`, `lint` as `Tool` values (implementations in WP-11); `Tool.before(fn)` / `Tool.after(fn)` hooks (`docs/05` §2).
@@ -35,14 +36,26 @@ The `std` package exists: every name listed in `docs/02` §12 resolves, is typed
 - Currencies other than USD.
 
 ## Interfaces
-```rust
-// crates/leash-std/src/lib.rs
-pub struct NativeFn { pub name: &'static str, pub signature: &'static str, pub effects: &'static [Effect], pub f: NativeImpl }
-pub type NativeImpl = for<'a> fn(&'a mut EffectCtx, Vec<Value>) -> BoxFuture<'a, Result<Value, Failure>>;
-inventory::collect!(NativeFn);
-pub fn natives() -> impl Iterator<Item = &'static NativeFn>;
-pub fn signatures() -> &'static [ParsedSignature];          // parsed once, cached
-pub fn sources() -> &'static [(&'static str, &'static str)]; // ("std/core.leash", "...")
+```cpp
+// src/std/include/leash/std/registry.hpp
+struct NativeFn {
+    std::string_view name;
+    std::string_view signature;
+    std::span<const Effect> effects;
+    NativeImpl f;
+};
+
+using NativeImpl = std::function<asio::awaitable<std::expected<Value, Failure>>(
+    EffectCtx&, std::vector<Value>)>;
+
+struct SourceFile {
+    std::string_view path;                                            // "std/core.leash"
+    std::string_view text;
+};
+
+std::span<const NativeFn> natives();
+std::span<const ParsedSignature> signatures();                    // parsed once, cached
+std::span<const SourceFile> sources();                            // {"std/core.leash", "..."}
 ```
 ```leash
 // std/patterns/fix_verify_report.leash (shape; body ≤ 60 lines)
@@ -66,31 +79,31 @@ pub fn independent_tests(tester: Agent, spec: String, repo: Repo) -> [Check] ! {
 Shared enums: `Backoff { None, Fixed(d: Duration), Exponential(base: Duration) }`, `OnTimeout { Fail, Record, Skip }`, `ReviewPolicy { AllApprove, Majority }`, `GatePolicy { Tty, Deny, Approve, Fail }`. Effect variables in native signatures are written `! e` and unions `! e + {spawn}`; the syntax is agreed with WP-08.
 
 ## Deliverables
-- `crates/leash-std` and `crates/leash-std-macros` with the registry and embedded sources.
+- `src/std` (CMake target `leash_std`) with the registry, the header-only `LEASH_NATIVE` macro in `src/std/include/leash/std/native_macro.hpp`, and the embedded sources.
 - `std/` tree: `core.leash drivers.leash tools.leash repo.leash context.leash verify.leash failure.leash mcp.leash human.leash trace.leash time.leash env.leash runs.leash artifacts.leash audit.leash caps.leash prices.leash patterns/*.leash patterns/roles.leash templates/report.md`.
 - `std/prices.toml` entries for every model in `docs/09` §8 (WP-02's file if present; otherwise created here).
-- Tests: unit tests for every native (`crates/leash-std/tests/natives.rs`), `test` declarations in every pattern file, entropy fixtures under `tests/fixtures/entropy/` (one per heuristic), a signature/implementation arity conformance test.
+- Tests: unit tests for every native (`tests/std/natives_test.cpp`), `test` declarations in every pattern file, entropy fixtures under `tests/fixtures/entropy/` (one per heuristic), a signature/implementation arity conformance test.
 - `docs/02` §12 updated to the final signatures; `docs/generated/stdlib.md` snapshot until WP-24's `leash doc` replaces it.
 
 ## Acceptance criteria
 - `leash check examples/*.leash` resolves every `std` name with no "unknown identifier" diagnostic.
 - `leash test std/` runs every pattern test with the mock driver and passes; a second `leash test std/ --reuse` performs zero live mock calls.
 - `wc -l std/patterns/*.leash` shows no file above 80 lines (pattern ≤ ~60 plus its tests).
-- `cargo nextest run -p leash-std` passes, including `natives_signature_arity` and one test per entropy heuristic (each fixture yields exactly its expected `category`/`severity`).
+- `ctest --preset dev -R std` passes, including `natives_signature_arity` and one test per entropy heuristic (each fixture yields exactly its expected `category`/`severity`).
 - `retry(3, on: Tool, backoff: .Exponential(1s)) { fail Tool("x") }` with the mock driver journals two `clock` entries requesting 1 s and 2 s (no sleep after the last attempt) and fails with kind `Tool` whose `cause` chain is two deep.
 - `std.audit.entropy` on a fixture that deletes a test and adds an unreferenced `debug.js` reports two items with severities 3 and 2.
 - A flow using `allow caps.sandbox_edit(["src/**"], shell: ["npm test*"])` is denied `fs.write("README.md", …)` with `Permission`.
-- `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` clean.
+- `clang-tidy` over the compile database and `clang-format --dry-run --Werror` clean.
 
 ## Notes and pitfalls
-- Signatures live in Rust attributes because the grammar has no `extern` declaration; if WP-07 adds one, migrate. Record this as a follow-up in `docs/status.md` either way.
+- Signatures live in the `LEASH_NATIVE` macro because the grammar has no `extern` declaration; if WP-07 adds one, migrate. Record this as a follow-up in `docs/status.md` either way.
 - Patterns must stay boring. If a pattern needs more than ~60 lines, split it or move it to `examples/`.
 - Every `pub` item declares its effects. This is mandatory, not aspirational:
   `std` is the one tree where `--strict` is required (`docs/02` §5.3), and
   `leash check --strict std/` runs in CI.
 - `gate` must consult the run's gate policy through `EffectCtx`, never the TTY directly; the policy is owned by WP-22.
 - Entropy heuristics are language-aware only for the runners listed in `docs/06` §2; unknown languages produce no false positives.
-- Keep `usd()` exact: parse decimal strings, never `f64`.
+- Keep `usd()` exact: parse decimal strings, never `double`.
 - `std.runs.load` reads only the run directory (`fs.read` effect) and never re-executes anything.
 
 ## Dependencies
