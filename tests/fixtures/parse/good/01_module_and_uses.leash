@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+// module paths and every `use` form.
+module fixtures.uses
+
+use std.drivers
+use std.repo.{Repo, Patch}
+use std.tools.fs

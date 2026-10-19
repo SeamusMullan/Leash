@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.constants
+
+let answer = 42
+let ratio: Float = 1.5
+let greeting: String = "hello"
+let timeout: Duration = 30s
+
+pub let limit: Int = 1_000_000

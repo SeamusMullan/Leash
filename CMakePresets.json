@@ -42,13 +42,24 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_PREFIX_PATH": "$env{HOMEBREW_PREFIX}"
       }
+    },
+    {
+      "name": "fuzz",
+      "inherits": "dev-local",
+      "binaryDir": "${sourceDir}/build/fuzz",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LEASH_BUILD_FUZZERS": "ON",
+        "CMAKE_CXX_FLAGS": "-fsanitize=fuzzer-no-link,address -fno-omit-frame-pointer"
+      }
     }
   ],
   "buildPresets": [
     { "name": "dev", "configurePreset": "dev" },
     { "name": "ci", "configurePreset": "ci" },
     { "name": "asan", "configurePreset": "asan" },
-    { "name": "dev-local", "configurePreset": "dev-local" }
+    { "name": "dev-local", "configurePreset": "dev-local" },
+    { "name": "fuzz", "configurePreset": "fuzz" }
   ],
   "testPresets": [
     { "name": "dev", "configurePreset": "dev", "output": { "outputOnFailure": true } },

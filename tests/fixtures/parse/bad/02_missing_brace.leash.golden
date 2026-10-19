@@ -1,0 +1,5 @@
+error[E0101]: expected '}' to close the block
+  --> 02_missing_brace.leash:8:1
+  |
+8 |
+  | ^ expected '}' to close the block here

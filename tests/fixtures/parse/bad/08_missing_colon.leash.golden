@@ -1,0 +1,5 @@
+error[E0101]: expected ':' after a record field name
+  --> 08_missing_colon.leash:6:8
+  |
+6 |   name String,
+  |        ^^^^^^ expected ':' after a record field name here

@@ -1,0 +1,11 @@
+error[E0100]: 'enum' is not supported yet (WP-07)
+   --> 03_triage_parallel.leash:12:1
+   |
+12 | enum Severity { Low, Medium, High, Critical }
+   | ^^^^ 'enum' arrives in WP-07
+   = help: remove this construct or wait for the full grammar
+error[E0100]: 'attempt' is not supported yet (WP-07)
+   --> 03_triage_parallel.leash:36:5
+   |
+36 |     attempt {
+   |     ^^^^^^^ 'attempt' arrives in WP-07

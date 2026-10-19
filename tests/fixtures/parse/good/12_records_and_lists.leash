@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.records
+
+type Suggestion = { name: String, rationale: String }
+
+flow records(input: { id: Int }) -> [Int] {
+  let empty = {}
+  let point = { x: 1, y: 2 }
+  let suggestion = Suggestion { name: "one", rationale: "because" }
+  let first = 1
+  let second = 2
+  let shorthand = { first, second }
+  let list = [1, 2, 3]
+  let nested = [[1], [2, 3], []]
+  let empty_list: [Int] = []
+  let variants = [.Low, .Medium, .High]
+  let compound = { items: [{ id: 1 }], flag: true, label: "x" }
+  complete list
+}

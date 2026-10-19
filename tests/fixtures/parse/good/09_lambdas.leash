@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.lambdas
+
+flow transform(input: [Int]) -> [Int] {
+  let increment = x => x + 1
+  let product = (left, right) => left * right
+  let statement = x => {
+    let doubled = x * 2
+    doubled
+  }
+
+  let names = input.map(x => x + 1)
+  let pairs = input.filter((a, b) => a < b)
+  let folded = input.fold(0) { (total, item) => total + item }
+  let wrapped = map(input, concurrency: 2) { item =>
+    let result = item * 2
+    result
+  }
+  let single = map(input) { item => item + 1 }
+
+  names
+}

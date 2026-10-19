@@ -201,7 +201,7 @@ convention plus the `node_id()` / `node_span()` visitors above.
 - `ctest --preset dev -L syntax` passes; golden tests cover all good and bad
   fixtures.
 - `build/dev/src/cli/leash check --syntax examples/01_hello.leash` exits 0 and prints nothing (or `ok`).
-- `for f in examples/0{2,3,4,5}*.leash; do build/dev/src/cli/leash check --syntax $f; done` exits 2 for each with a first diagnostic `E0100` naming (respectively) `enum`/`tool`/`ensure`… as recorded in the fixture goldens.
+- `for f in examples/0{2,3,5}*.leash; do build/dev/src/cli/leash check --syntax $f; done` exits 2 for each with a first diagnostic `E0100` naming respectively `require`/`enum`/`tool`, as recorded in the fixture goldens; `examples/04_review_debate.leash` parses with no diagnostics.
 - `build/dev/src/cli/leash fmt --check examples/01_hello.leash` exits 0 after
   the example has been formatted once; `fmt(fmt(x)) == fmt(x)` is asserted in
   a test over every good fixture.
@@ -209,7 +209,9 @@ convention plus the `node_id()` / `node_span()` visitors above.
   every good fixture.
 - A bad fixture with two independent errors yields two diagnostics (recovery works).
 - `lex` on 1 MiB of random bytes terminates in under 1 s without crashing; the
-  case is a RapidCheck `rc::check` inside a Catch2 test.
+  case is a Catch2 test (`lexer survives a megabyte of arbitrary bytes`) with a
+  wall-clock assertion. RapidCheck is deferred until the testkit lands, so this
+  is a single deterministic LCG-generated buffer rather than `rc::check`.
 - Both libFuzzer targets build with `-fsanitize=fuzzer,address` and run for
   60 s each in CI without a crash.
 

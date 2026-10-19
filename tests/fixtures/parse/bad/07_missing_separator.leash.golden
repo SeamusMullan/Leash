@@ -1,0 +1,5 @@
+error[E0106]: expected a newline or ';' after this statement
+  --> 07_missing_separator.leash:6:17
+  |
+6 |   let first = 1 let second = 2
+  |                 ^^^ add a newline here

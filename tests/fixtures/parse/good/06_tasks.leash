@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.tasks
+
+use std.repo.Repo
+
+type Patch = { diff: String, files: [String] }
+
+task Fix {
+  input { repo: Repo, issue: String }
+  output Patch
+  budget { cost: usd(0.50), llm_calls: 5, wall: 30s }
+}
+
+task Review {
+  input { patch: Patch }
+  output [String]
+  budget { tokens: 400_000 }
+}

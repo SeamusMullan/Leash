@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.types
+
+use std.repo.Repo
+
+/// A record with primitives, lists, optionals, named types and refinements.
+type Suggestion = {
+  name: String where len(name) <= 30,
+  score: Float,
+  tags: [String],
+  owner: Repo,
+  parent: Suggestion?,
+  note: String?,
+}
+
+type Wrapper = { value: Suggestion }
+
+pub type Empty = {}

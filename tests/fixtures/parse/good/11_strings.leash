@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.strings
+
+flow strings(input: { name: String }) -> String {
+  let plain = "hello"
+  let interpolated = "Hello, {input.name}!"
+  let nested = "{format("x")}"
+  let escaped = "braces {{ and }} stay literal"
+  let expression = "sum: {1 + 2}"
+  let raw = r"no {interpolation} or \n escapes here"
+  let multi = """
+    Hello {input.name}
+      indented line
+    Goodbye
+  """
+  let count = 1_000_000
+  let ratio = 3.5
+  let delay = 500ms
+  let longer = 2h
+  let yes = true
+  let no = false
+  let nothing = null
+  multi
+}

@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Leash Authors
+module fixtures.agents
+
+use std.drivers
+
+agent namer = Agent {
+  driver: drivers.anthropic(model: "claude-opus-5", effort: .Medium),
+  system: "Answer with the schema only.",
+  tools: [fs.read, fs.write],
+  retries: 3,
+}
+
+agent helper = Agent { driver: drivers.mock(), system: r"be brief" }

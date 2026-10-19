@@ -187,3 +187,78 @@ COMMENT      := '//' CHAR* NEWLINE | '/*' ( CHAR | NEWLINE )* '*/' ;   (* block 
    state on backoff concurrency limit with
    Effect names and failure kinds are contextual identifiers. `gate`, `select`, `shell`, `test`
    (inside `by`) are ordinary std functions. *)
+
+(* ---------- Parser ambiguity notes (WP-03) ---------- *)
+
+(* The v0 parser is recursive descent with a Pratt loop and bounded lookahead.
+   These notes record every place where the grammar above admits more than one
+   parse and how the parser chooses. They are normative for v0 and must be
+   revisited when WP-07 extends the grammar. *)
+
+(* 1. Named record literals. `Path RecordLit` is a named record only when the
+   path is exactly one segment, that segment starts with an uppercase letter,
+   and the `{` is on the same line (no Newline token between them). Thus
+   `Agent { ... }` and `Triage { ... }` are named records; `foo { ... }` is a
+   path followed by a record literal, and `a.b { ... }` is not a named record.
+   The capitalisation rule is what keeps `if cond { ... }` unambiguous: the
+   `{` always starts the then-block, never a record-literal condition. A
+   record literal used as an `if` condition must be parenthesised:
+   `if ({ flag: true }).flag { ... }`. *)
+
+(* 2. Trailing lambdas. After a call's closing `)`, a `{` starts a trailing
+   lambda only when lookahead (skipping newlines) is `IDENT '=>'` or
+   `'(' IDENT (',' IDENT)* ')' '=>'`. Anything else leaves the `{` to the
+   enclosing construct. There is no empty trailing lambda: `f() {}` is not
+   `f() { x => ... }`, and `f() { x }` is not a lambda. A trailing lambda is
+   attached to a call or method call, not to a bare field access: `xs.map { x
+   => ... }` is not accepted; write `xs.map() { x => ... }` or
+   `map(xs) { x => ... }`. *)
+
+(* 3. Lambda bodies vs record literals. After `IDENT '=>'` or `( params ) '=>'`
+   a `{` is always a block body, never a record literal. To return a record
+   from a lambda write `x => ({ a: x })`. Inside a trailing lambda the body is
+   parsed as statements up to the matching `}`; a bare expression body is the
+   final expression statement. *)
+
+(* 4. Parenthesised expressions vs lambda parameters. `(` starts a lambda
+   parameter list only when the matching `)` is followed by `=>`. Otherwise it
+   is a parenthesised expression. `(a, b)` outside a lambda has no v0 meaning
+   (tuple literals are WP-07) and produces E0100. *)
+
+(* 5. Newline termination (docs/02 §2.6). The lexer emits Newline; the parser
+   skips newlines before a binary operator, before a postfix `.`, and before
+   `else`, so those continue the expression. A newline before `(` does NOT
+   continue a call: `f\n(1)` is two statements. A newline before `[` does not
+   continue indexing. Newlines inside `(...)`, `[...]`, `{...}` are skipped by
+   the corresponding list/record/argument parser, so multi-line literals are
+   allowed. A blank line is never significant to the grammar. *)
+
+(* 6. `use` groups. `use Path.{A, B}` is recognised only when `.` is
+   immediately followed by `{` while parsing the import path. The group may
+   span lines inside the braces, but the `.` itself must be on the same line as
+   the final path segment. `use a.b { A }` is a path followed by a record
+   literal and is not an import group. *)
+
+(* 7. `ask` targets. `ask` parses a postfix chain without calls as its target,
+   then requires the argument list: `ask agent(args)` and
+   `ask registry.agent(args)` are both valid. A call inside the target
+   (`ask make_agent()(...)`) is not part of the v0 subset. *)
+
+(* 8. Variant literals. `.Name` is a variant literal; `.Name(...)` is a variant
+   payload and reports E0100 (WP-07). A leading `.` followed by an identifier
+   after an expression is field access instead: the parser only treats `.` as
+   the start of a primary expression when it appears in primary position. *)
+
+(* 9. Blocks and record literals in expression position. A `{` in primary
+   position is always a record literal, never a bare block. Blocks appear only
+   as `if`/`else` arms, function/flow bodies and lambda bodies. To group
+   statements use a lambda or an `if`. *)
+
+(* 10. Task budget. `budget` accepts a record literal (`budget { ... }`) or a
+   parenthesised expression (`budget (cost_limit)`). A bare expression is not
+   accepted. `input` must be a record type; `output` accepts any type. *)
+
+(* 11. Doc comments. A run of `///` lines attaches to the next token, and thus
+   to the item or statement that token begins. A doc comment at end of file
+   attaches to the program's trailing trivia. Blank lines do not detach a doc
+   comment. *)
