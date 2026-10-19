@@ -175,13 +175,13 @@ baseline bump. The current set:
 | Catch2 v3 | `catch2` | `BSL-1.0` |
 | spdlog | `spdlog` | `MIT` |
 | toml++ | `tomlplusplus` | `MIT` |
-| RapidCheck | `rapidcheck` | `BSD-2-Clause` |
 
 `blake3` is offered under either licence and its port declares the disjunction,
-so both identifiers are accepted for that port. `rapidcheck` declares
-`BSD-2-Clause` in its port manifest, which matches the two-clause text in its
-upstream `LICENSE.md`. Catch2 and RapidCheck are test-only and are never linked
-into the shipped `leash` binary.
+so both identifiers are accepted for that port. Catch2 is test-only and is never
+linked into the shipped `leash` binary. RapidCheck is deferred: its vcpkg port
+does not compile against current libc++ (`std::copy`, `std::back_inserter` and
+`exception_ptr` errors). WP-25 selects a maintained property-test library or a
+patched port, and this table gains the row then.
 
 ## 6. The NOTICE file
 

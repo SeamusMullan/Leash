@@ -16,7 +16,6 @@
     "tomlplusplus",
     "blake3",
     "valijson",
-    "catch2",
-    "rapidcheck"
+    "catch2"
   ]
 }
