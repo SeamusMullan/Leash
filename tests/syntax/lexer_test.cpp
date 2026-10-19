@@ -190,6 +190,7 @@ TEST_CASE("lexer survives a megabyte of arbitrary bytes", "[syntax][lexer]") {
     CHECK(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() < 1000);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): Catch2 macros inflate it
 TEST_CASE("lexer reports unterminated strings and invalid bytes as Error", "[syntax][lexer]") {
     const std::vector<Token> string_tokens = lex_text("\"abc");
     CHECK(string_tokens.at(0).kind == TokenKind::StringStart);

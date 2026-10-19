@@ -63,6 +63,7 @@ leash_files(const std::filesystem::path& directory) {
 
 } // namespace
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): fixture loop and asserts
 TEST_CASE("every good fixture parses, formats and round-trips", "[syntax][fixtures][good]") {
     const std::vector<std::filesystem::path> files = leash_files(fixture_root() / "good");
     REQUIRE(files.size() >= 12);
