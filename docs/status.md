@@ -8,7 +8,7 @@ Legend: todo · assigned(<who>) · in-progress · review(<PR>) · done · blocke
 | WP-02 | Machine-readable spec files | [WP-02-spec-schemas](subagents/WP-02-spec-schemas.md) | todo | | | |
 | WP-03 | Lexer, parser, AST, formatter (v0 subset) | [WP-03-parser-v0](subagents/WP-03-parser-v0.md) | todo | | | |
 | WP-04 | Interpreter core, journal, replay/resume (v0) | [WP-04-interpreter-journal-v0](subagents/WP-04-interpreter-journal-v0.md) | todo | | | |
-| WP-05 | Mock driver and Anthropic `ask` driver | [WP-05-drivers-mock-anthropic-ask](subagents/WP-05-drivers-mock-anthropic-ask.md) | todo | | | |
+| WP-05 | Mock driver and the Anthropic streaming spike | [WP-05-drivers-mock-anthropic-ask](subagents/WP-05-drivers-mock-anthropic-ask.md) | todo | | | |
 | WP-06 | Run directory, manifest, CAS, trace layer v0 | [WP-06-run-dir-cas-traces-v0](subagents/WP-06-run-dir-cas-traces-v0.md) | todo | | | |
 | WP-07 | Full parser and formatter | [WP-07-parser-full](subagents/WP-07-parser-full.md) | todo | | | |
 | WP-08 | Type checker and JSON Schema generation | [WP-08-typechecker-schema](subagents/WP-08-typechecker-schema.md) | todo | | | |
@@ -16,7 +16,7 @@ Legend: todo · assigned(<who>) · in-progress · review(<PR>) · done · blocke
 | WP-10 | LIR | [WP-10-lir](subagents/WP-10-lir.md) | todo | | | |
 | WP-11 | Sandbox and built-in tools | [WP-11-sandbox-builtin-tools](subagents/WP-11-sandbox-builtin-tools.md) | todo | | | |
 | WP-12 | Budget and capability enforcement | [WP-12-budget-cap-enforcement](subagents/WP-12-budget-cap-enforcement.md) | todo | | | |
-| WP-13 | Anthropic `run` driver, tool loop | [WP-13-anthropic-run-tool-loop](subagents/WP-13-anthropic-run-tool-loop.md) | todo | | | |
+| WP-13 | Anthropic driver (`ask` and `run` tool loop) | [WP-13-anthropic-run-tool-loop](subagents/WP-13-anthropic-run-tool-loop.md) | todo | | | |
 | WP-14 | MCP client, Leash tools, per-run MCP server | [WP-14-mcp-and-tools](subagents/WP-14-mcp-and-tools.md) | todo | | | |
 | WP-15 | Tasks, flows, checks, evidence, complete, report | [WP-15-tasks-checks-evidence](subagents/WP-15-tasks-checks-evidence.md) | todo | | | |
 | WP-16 | Failures, recovery, state, checkpoints, fork | [WP-16-failures-state-checkpoints](subagents/WP-16-failures-state-checkpoints.md) | todo | | | |
@@ -30,6 +30,7 @@ Legend: todo · assigned(<who>) · in-progress · review(<PR>) · done · blocke
 | WP-24 | Documentation site | [WP-24-docs-site](subagents/WP-24-docs-site.md) | todo | | | |
 | WP-25 | Test infrastructure | missing | todo | | | |
 | WP-26 | `leash eval` | missing | todo | | | |
+| WP-27 | Hermes driver (`ask` and `run`) | [WP-27-hermes-driver](subagents/WP-27-hermes-driver.md) | todo | | | |
 
 ## Follow-ups
 
@@ -46,7 +47,13 @@ Legend: todo · assigned(<who>) · in-progress · review(<PR>) · done · blocke
   agreement. See `docs/adr/0010-licensing.md` and `docs/14-licensing.md`.
 - 2026-09-12: repository is https://github.com/SeamusMullan/Leash on GitHub
   Actions.
+- 2026-10-19: C++23 with Boost.Asio replaces Rust (ADR-0011). Sarah's decision:
+  C++ is her fluent language, Boost.Asio is the async substrate, and the
+  remaining library choices are recorded in ADR-0011. ADR-0001 is superseded.
+- 2026-10-19: the Hermes driver is built before Claude Code, and the M1 tracer
+  bullet runs mock plus hermes (ADR-0004, roadmap v0.2).
 - 2026-09-12: Rust confirmed as the implementation language after a three-way
-  comparison with Go and TypeScript. See `docs/adr/0001-implementation-language.md`.
+  comparison with Go and TypeScript. Superseded 2026-10-19 by ADR-0011.
+  See `docs/adr/0001-implementation-language.md`.
 - 2026-09-12: `--strict` effect declarations default off for user packages and
   are mandatory for `std`; flip the default before 1.0. See `docs/02` §5.3.

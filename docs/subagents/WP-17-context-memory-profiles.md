@@ -11,14 +11,14 @@ and protocol sections are exposed to the model, so the harness contribution
 can be measured.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/05-harness-model.md` §1 rows 2, 4, 5; §3 (profiles matrix and mechanics); §5
 - `docs/02-language-spec.md` §1 (resources are pure descriptors), §12 (`std.context`)
 - `docs/01-language-tour.md` §8
 - `docs/09-drivers-and-tools.md` §2 (first user message, caching)
 - `docs/11-episode-package-and-eval.md` §1 (context trace), §3 (context-trace meaningfulness)
 - `docs/04-determinism-and-replay.md` §5 (file reads captured as hashes + CAS)
-- WP-11 (fs tools), WP-13 (where the rendered context goes)
+- WP-11 (fs tools), WP-27 (the Hermes driver: where the rendered context and profile artifacts go)
 
 ## Scope
 - `select(repo, files: [String] = [], globs: [String] = [], memory: [Resource] = [],
@@ -72,31 +72,71 @@ can be measured.
   them; no CLI to author them).
 
 ## Interfaces
-```rust
-pub struct Context { pub hash: Blake3, pub tokens_est: u64, pub tokens_exact: Option<u64>,
-                     pub artifacts: Vec<ContextArtifact>, rendered: Arc<str> }
-pub struct ContextArtifact { pub kind: ArtifactKind /* Memory | File */, pub path: String, pub hash: Blake3,
-                             pub bytes: u64, pub tokens_est: u64, pub included: bool, pub reason: Option<String> }
-impl Context { pub fn render(&self) -> &str; }
+```cpp
+// src/spec/include/leash/spec/profile.hpp
+enum class ArtifactKey { tool_registry, test_command_registry, memory,
+                         task_state, check_registry, report_template };
+enum class ProtocolKey { tool_usage, context_selection, bug_reproduction,
+                         failure_attribution, verification };
 
-pub struct Profile { pub name: String, pub artifacts: BTreeSet<ArtifactKey>, pub protocols: Vec<ProtocolKey> }
-pub enum ArtifactKey { ToolRegistry, TestCommandRegistry, Memory, TaskState, CheckRegistry, ReportTemplate }
-pub enum ProtocolKey { ToolUsage, ContextSelection, BugReproduction, FailureAttribution, Verification }
-pub trait ProfileRenderer { async fn render(&self, run: &RunCtx, profile: &Profile, workdir: &Path) -> Result<Vec<RenderedArtifact>, Failure>; }
+struct Profile {
+    std::string name;
+    std::set<ArtifactKey> artifacts;        // canonical order
+    std::vector<ProtocolKey> protocols;
+};
+
+// src/effects/include/leash/effects/context.hpp
+enum class ArtifactKind { memory, file };
+
+struct ContextArtifact {
+    ArtifactKind kind;                      // memory | file
+    std::string path;
+    Blake3 hash;
+    std::uint64_t bytes = 0;
+    std::uint64_t tokens_est = 0;
+    bool included = false;
+    std::optional<std::string> reason;
+};
+
+class Context {
+public:
+    Blake3 hash;
+    std::uint64_t tokens_est = 0;
+    std::optional<std::uint64_t> tokens_exact;
+    std::vector<ContextArtifact> artifacts;
+
+    std::string_view render() const;        // pure; byte-stable
+
+private:
+    std::shared_ptr<const std::string> rendered_;   // built once, shared read-only
+};
+
+// src/runtime/include/leash/runtime/profile/render.hpp
+class ProfileRenderer {
+public:
+    virtual ~ProfileRenderer() = default;
+    virtual asio::awaitable<std::expected<std::vector<RenderedArtifact>, Failure>>
+    render(const RunCtx& run, const Profile& profile,
+           const std::filesystem::path& workdir) = 0;
+};
 ```
-`RunRequest.profile_artifacts` (docs/09 §1) is filled by this WP; WP-13/18/19
-consume it (system prompt sections and, for CLI drivers, the files on disk).
+`RunRequest.profile_artifacts` (docs/09 §1) is filled by this WP; WP-27, WP-18
+and WP-19 consume it through the `Driver` interface (system prompt sections for
+API drivers, the files on disk for CLI drivers), so every driver receives the
+same artifacts. `Profile` belongs to `leash_spec` per
+`docs/subagents/shared-interfaces.md`; the TOML loader in WP-02 and this WP
+share one shape.
 
 ## Deliverables
-- `crates/leash-effects/src/context/{select.rs, render.rs, tokens.rs}`
-- `crates/leash-runtime/src/profile/{mod.rs, render.rs}`; `std/profiles/*.toml`; `std/protocols/*.md`
-- `crates/leash-trace/src/context_trace.rs` (later-reference pass)
-- Tests: rendering golden files; hash stability; truncation order; profile
-  matrix; manifest recording.
+- `src/effects/context/{select.cpp, render.cpp, tokens.cpp}` with headers under `src/effects/include/leash/effects/context/`
+- `src/runtime/profile/render.cpp`; `std/profiles/*.toml`; `std/protocols/*.md`
+- `src/trace/context_trace.cpp` (later-reference pass)
+- Tests: rendering golden files through `leash_testkit`'s `expect_golden`; hash
+  stability; truncation order; profile matrix; manifest recording.
 - Docs: `docs/05-harness-model.md` §3 updated with final file names.
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-effects -p leash-runtime -p leash-trace` passes.
+- `ctest --preset dev -L 'effects|runtime|trace'` passes.
 - Selecting the same files twice, or in a different `files:` order, yields
   the same `Context.hash`; changing one byte in one file changes it.
 - With `max_tokens: 1_000` and three files of 2k, 500 and 300 estimated
@@ -114,8 +154,9 @@ consume it (system prompt sections and, for CLI drivers, the files on disk).
 ## Notes and pitfalls
 - Keep the rendering byte-stable across platforms (LF line endings, UTF-8,
   no timestamps); it is a prompt-cache key.
-- Do not read files through `std::fs` directly; go through the `fs.read`
-  effect so hashes and CAS entries are journaled and replay works offline.
+- Do not read files through `std::filesystem` directly; go through the
+  `fs.read` effect so hashes and CAS entries are journaled and replay works
+  offline.
 - Memory resources may live outside the working copy (e.g. a shared
   `AGENT_GUIDE.md`); they need `fs.read` capability for their path.
 - The check registry at H3 exposes expected outputs to the model by design
@@ -125,7 +166,7 @@ consume it (system prompt sections and, for CLI drivers, the files on disk).
   re-read it themselves.
 
 ## Dependencies
-Hard: WP-11, WP-13. Soft: WP-15 (`ensure` for `CHECKS.md`; render an empty registry until then), WP-16 (`state`).
+Hard: WP-11, WP-27. Soft: WP-15 (`ensure` for `CHECKS.md`; render an empty registry until then), WP-16 (`state`).
 
 ## Estimated size
 M (2–4 days).

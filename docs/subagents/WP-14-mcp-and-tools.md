@@ -11,7 +11,7 @@ proxies into the running runtime, so capabilities, validation and journaling
 apply identically.
 
 ## Read first
-- `docs/subagents/shared-interfaces.md` (normative: which crate owns which shared type)
+- `docs/subagents/shared-interfaces.md` (normative: which module owns which shared type)
 - `docs/09-drivers-and-tools.md` §7 (tools, MCP, middleware), §3 (how CLI drivers receive `--mcp-config`)
 - `docs/02-language-spec.md` §5.5 (effects of tool calls), §6.1, §11 (schema mapping), §12 (`std.mcp`)
 - `docs/03-runtime-architecture.md` §8.1
@@ -20,8 +20,10 @@ apply identically.
 - WP-11 (tool layer and sandbox), WP-12 (capabilities)
 
 ## Scope
-- MCP client on the official Rust SDK (`rmcp`): stdio transport (child
-  process, scrubbed env) and streamable HTTP transport. `mcp.connect(stdio(cmd) | http(url))`
+- MCP client on a hand-written JSON-RPC 2.0 codec (ADR-0011; no official C++
+  SDK): stdio transport (Boost.Process v2 child process, scrubbed env) and
+  streamable HTTP transport (Boost.Beast). Framing and error mapping live in one
+  header, which WP-23's LSP server reuses. `mcp.connect(stdio(cmd) | http(url))`
   is a pure descriptor; connection happens on first tool use and is journaled.
 - Schema cache: `.leash/mcp/<server-name>.json` = `{ server, fetched_at, tools:
   [{ name, description, input_schema, output_schema?, hash }] }`. `leash check`
@@ -41,7 +43,7 @@ apply identically.
 - Execution of a Leash tool: validate input against the schema and
   refinements (invalid → `is_error` result to the model, `Tool` failure
   recorded, not a program failure), evaluate the body in a child activation
-  with the run's `CapScope`/`BudgetScope`, serialise the result.
+  with the run's `CapStack`/`BudgetStack` view, serialise the result.
 - Middleware chain (fixed order): permission check → input validation →
   program `before` hooks → execute → output sanitisation (secret redaction,
   size cap with CAS spill) → program `after` hooks → journal child entry →
@@ -50,8 +52,8 @@ apply identically.
 - Tool service: the runtime listens on a Unix domain socket
   `.leash/runs/<id>/tools.sock` speaking newline-delimited JSON-RPC
   (`list_tools`, `call_tool`). `leash mcp-serve --run <id>` is a thin process
-  that speaks MCP over stdio (rmcp server side) and forwards to the socket.
-  CLI drivers reference it in their MCP config.
+  that speaks MCP over stdio (the hand-written server side) and forwards to the
+  socket. CLI drivers reference it in their MCP config.
 - Every tool call from either path is a child `tool` journal entry of the
   enclosing `run` with `parent`, name, input, output (CAS if large), duration,
   status, and the capability decision.
@@ -64,18 +66,41 @@ apply identically.
   process sandbox with scrubbed env only).
 
 ## Interfaces
-```rust
-pub struct ToolSpec { pub name: String, pub description: String, pub input_schema: serde_json::Value,
-                      pub output_type: Ty, pub caps_required: CapSet, pub deterministic: bool }
-pub enum ToolImpl { Builtin(Arc<dyn BuiltinTool>), Leash { closure: LirClosure }, Mcp { server: McpRef, name: String } }
-pub struct Tool { pub spec: ToolSpec, pub imp: ToolImpl, pub before: Vec<LirClosure>, pub after: Vec<LirClosure> }
+```cpp
+#include <leash/effects/builtin_tool.hpp>   // BuiltinTool (WP-11)
+#include <leash/ir/closure.hpp>             // LirClosure (WP-10)
 
-pub trait ToolMiddleware: Send + Sync {
-    async fn before(&self, call: &ToolCall, ctx: &EffectCtx) -> Result<(), Failure>;
-    async fn after(&self, call: &ToolCall, out: &mut ToolOutput, ctx: &EffectCtx) -> Result<(), Failure>;
-}
-pub struct ToolRegistry { /* name → Tool, ordered */ }
-impl ToolExecutor for ToolRegistry { /* as consumed by WP-13 */ }
+struct ToolSpec {
+    std::string name;
+    std::string description;
+    nlohmann::json input_schema;
+    Ty output_type;
+    CapSet caps_required;
+    bool deterministic = false;
+};
+
+struct McpRef { std::string server; std::string tool; };
+struct LeashToolBody { LirClosure closure; };
+struct McpToolBody { McpRef server; std::string name; };
+
+using ToolImpl = std::variant<std::shared_ptr<BuiltinTool>, LeashToolBody, McpToolBody>;
+
+struct Tool {
+    ToolSpec spec;
+    ToolImpl imp;
+    std::vector<LirClosure> before;
+    std::vector<LirClosure> after;
+};
+
+class ToolMiddleware {
+public:
+    virtual ~ToolMiddleware() = default;
+    virtual asio::awaitable<std::expected<void, Failure>> before(const ToolCall& call, EffectCtx& ctx) = 0;
+    virtual asio::awaitable<std::expected<void, Failure>> after(const ToolCall& call, ToolOutput& out,
+                                                               EffectCtx& ctx) = 0;
+};
+
+class ToolRegistry final : public ToolExecutor { /* name → Tool, ordered */ };   // as consumed by WP-13
 
 // tool service wire (socket): {"jsonrpc":"2.0","method":"call_tool","params":{"name":…,"input":…},"id":…}
 ```
@@ -83,17 +108,17 @@ CLI: `leash mcp refresh [server]`, `leash mcp-serve --run <id>` (hidden from
 the top-level help; internal).
 
 ## Deliverables
-- `crates/leash-drivers/src/mcp/{client.rs, cache.rs, schema_to_ty.rs, proxy_server.rs}`
-- `crates/leash-effects/src/tools/{registry.rs, middleware.rs, leash_tool.rs, service.rs}`
-- `crates/leash-cli/src/cmd/mcp.rs`
-- Test MCP server: `crates/leash-drivers/tests/support/mcp_echo_server.rs` (tools `echo`, `add`, one with a nested object schema)
+- `src/drivers/mcp/{client,cache,schema_to_ty,proxy_server}.cpp` with headers under `src/drivers/include/leash/drivers/mcp/`
+- `src/effects/tools/{registry,middleware,leash_tool,service}.cpp` with headers under `src/effects/include/leash/effects/tools/`
+- `src/cli/cmd/mcp.cpp`
+- Test MCP server: `tests/drivers/support/mcp_echo_server.cpp`, a test-only executable target (tools `echo`, `add`, one with a nested object schema)
 - Tests: schema cache round trip; schema→type mapping table; Leash tool with
   refinement rejects bad input as `is_error`; hook denial; proxy end-to-end
-  (spawn `leash mcp-serve` against a running test runtime, call `echo` via an
-  rmcp client, assert a child journal entry exists).
+  (spawn `leash mcp-serve` against a running test runtime, call `echo` through
+  the MCP client, assert a child journal entry exists).
 
 ## Acceptance criteria
-- `cargo nextest run -p leash-drivers -p leash-effects` passes.
+- `ctest --preset dev -R 'leash_(drivers|effects)'` passes.
 - `leash mcp refresh` against the test server writes
   `.leash/mcp/echo.json` with hashes; editing the server's schema and running
   `leash run` with `on_schema_change = "fail"` exits 2 with the tool name.
@@ -103,11 +128,13 @@ the top-level help; internal).
   `examples/05` produces a journal where the tool call is a child entry whose
   `caps` decision records `human: true` and whose gate answer comes from
   `--gate approve`.
-- `leash mcp-serve --run <id>` + an rmcp stdio client lists exactly the tools
+- `leash mcp-serve --run <id>` + the MCP client over stdio lists exactly the tools
   the run's `allow` permits.
 
 ## Notes and pitfalls
-- Pin `rmcp` to an exact version; the MCP spec evolves. Wrap it in one module.
+- Pin the MCP protocol revision in one constant in the protocol header; the
+  spec evolves. Keep every wire type in that one header so a revision bump is a
+  one-file change.
 - Tool names must be unique across builtin, Leash and MCP tools in one run;
   prefix MCP tools as `<server>__<tool>` when exposed to models and map back.
 - Anthropic strict tools require `additionalProperties: false` and full

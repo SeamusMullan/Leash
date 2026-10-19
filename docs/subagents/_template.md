@@ -16,12 +16,12 @@ Bullet list of concrete things to build. Each bullet is checkable.
 What a diligent implementer might be tempted to do but must not.
 
 ## Interfaces
-Types, traits, functions, file formats or CLI surfaces this WP must provide or
-consume, precisely enough that neighbouring WPs can code against them before
-this WP lands. Rust signatures are welcome.
+Types, interfaces, functions, file formats or CLI surfaces this WP must provide
+or consume, precisely enough that neighbouring WPs can code against them before
+this WP lands. C++ declarations are welcome.
 
 ## Deliverables
-Files, crates, commands, docs and tests that will exist.
+Files, CMake targets, commands, docs and tests that will exist.
 
 ## Acceptance criteria
 Commands to run and the observable results. Every criterion must be verifiable

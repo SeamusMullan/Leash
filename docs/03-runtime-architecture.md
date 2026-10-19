@@ -1,6 +1,6 @@
 # Leash Runtime and Compiler Architecture
 
-Status: draft v0.1. Implementation language: Rust (see `docs/adr/0001-implementation-language.md`).
+Status: draft v0.1. Implementation language: C++23 (see `docs/adr/0011-implementation-language-cpp.md`).
 
 ## 1. Overview
 
@@ -15,13 +15,13 @@ Status: draft v0.1. Implementation language: Rust (see `docs/adr/0001-implementa
                  leash check / fmt / lsp                    leash run / replay / resume / fork
                                                                    │
                                                                    ▼
-                                    ┌──────────────── Interpreter (tokio) ────────────────┐
+                                    ┌──────────────── Interpreter (Asio) ─────────────────┐
                                     │  values · env · scopes (budget, caps) · scheduler   │
                                     │        effect boundary: EffectRequest               │
                                     └───────────────┬──────────────────────┬──────────────┘
                                                     ▼                      ▼
                                               Journal (JSONL)        Effect handlers
-                                              + CAS blobs             ├─ llm  ─► Drivers (anthropic, claude_code, codex, managed, mock)
+                                              + CAS blobs             ├─ llm  ─► Drivers (anthropic, hermes, claude_code, codex, managed, mock)
                                                     │                 ├─ tool ─► builtin tools · Leash tools · MCP client
                                                     ▼                 ├─ shell/fs ─► Sandbox
                                               Trace writers           ├─ human ─► Gate policy / TTY
@@ -37,50 +37,58 @@ Three invariants hold the design together:
 3. **The runtime is the authority on budgets and capabilities.** Drivers are
    asked to cooperate; the runtime verifies anyway.
 
-## 2. Workspace layout (Rust)
+## 2. Module layout (C++23)
 
 ```
-Cargo.toml                 workspace
-crates/
-  leash-spec/              shared vocabulary: Money, Usage, Budget, CapSet, Effect, FailureKind, PayloadRef, profiles, price table, embedded JSON schemas
-  leash-syntax/            lexer (logos), hand-written recursive-descent parser, AST, spans, diagnostics, formatter
-  leash-types/             name resolution, type checker, effect inference, capability checker, JSON Schema gen
-  leash-ir/                LIR data model (serde), AST→LIR lowering, LIR JSON (de)serialisation, hashing
-  leash-runtime/           interpreter, values, Failure, scopes, scheduler, budget/capability stacks, journal, replay
-  leash-store/             content-addressed store, run directory, manifest
-  leash-policy/            shell tokenisation and command matching, path policy, host matching
-  leash-effects/           EffectHandler traits, EffectCtx, builtin tools (fs, shell, git, test, http), sandbox
-  leash-drivers/           Driver trait; anthropic (reqwest), claude_code, codex, managed_agents, mock; MCP (rmcp)
-  leash-trace/             trace schemas, writers, report generator, outcome classification
-  leash-std/               std library: Leash source (embedded) + native bindings
-  leash-cli/               `leash` binary (clap)
-  leash-lsp/               language server (tower-lsp)
-  leash-eval/              harness-ladder runner, benchmark adapters, metrics
-  leash-testkit/           fixtures, scripted mock drivers, journal assertions (dev-dependency)
-spec/                      grammar.ebnf, lir.schema.json, journal.schema.json, traces/*.schema.json
-std/                       Leash source of the standard library (embedded into leash-std at build time)
-examples/                  example programs (also parser/type-check fixtures)
-tests/                     integration tests, golden journals, mock scripts
+src/
+  spec/       shared vocabulary: Money, Usage, Budget, CapSet, FailureKind, PayloadRef, profiles, price table, embedded JSON schemas
+  syntax/     hand-written lexer, recursive-descent parser, AST, spans, diagnostics, formatter
+  types/      name resolution, type checker, effect inference, capability checker, JSON Schema generation
+  ir/         LIR data model, AST→LIR lowering, LIR JSON (de)serialisation, hashing
+  runtime/    interpreter, values, Failure, scopes, scheduler, budget/capability stacks, journal, replay
+  store/      content-addressed store, run directory, manifest
+  policy/     shell tokenisation and command matching, path policy, host matching
+  effects/    EffectHandler interface, EffectCtx, builtin tools (fs, shell, git, test, http), sandbox
+  drivers/    Driver interface; anthropic (Beast), hermes, claude_code, codex, managed_agents, mock; MCP client
+  trace/      trace schemas, writers, report generator, outcome classification
+  std/        standard library: Leash source (embedded) + native bindings
+  cli/        `leash` binary (CLI11)
+  lsp/        language server (hand-written JSON-RPC)
+  eval/       harness-ladder runner, benchmark adapters, metrics
+  testkit/    fixtures, scripted mock drivers, journal assertions (test-only target)
+spec/         grammar.ebnf, lir.schema.json, journal.schema.json, traces/*.schema.json
+std/          Leash source of the standard library (embedded into leash_std at build time)
+examples/     example programs (also parser/type-check fixtures)
+tests/        unit tests per module, integration tests, golden journals, mock scripts
 ```
+
+Fifteen modules, one CMake target each (`leash_spec`, `leash_syntax`,
+`leash_types`, `leash_ir`, `leash_runtime`, `leash_store`, `leash_policy`,
+`leash_effects`, `leash_drivers`, `leash_trace`, `leash_std`, `leash_cli`,
+`leash_lsp`, `leash_eval`, `leash_testkit`), producing the single `leash`
+executable. Headers live at `src/<module>/include/leash/<module>/<name>.hpp`;
+sources at `src/<module>/<name>.cpp`; tests at `tests/<module>/<name>_test.cpp`.
 
 Dependency direction: `spec ← syntax ← types ← ir ← runtime ← {effects, drivers, trace} ← cli/lsp/eval`,
-with `leash-store` and `leash-policy` sitting beside `spec` as leaves. `leash-spec`
-is the shared vocabulary crate every other crate may depend on; it keeps
-`leash-drivers` and `leash-effects` independent of `leash-runtime`.
-`docs/subagents/shared-interfaces.md` is normative for which crate owns which type.
+with `store` and `policy` sitting beside `spec` as leaves. `spec` is the shared
+vocabulary module every other module may depend on; it keeps `drivers` and
+`effects` independent of `runtime`. A module uses another only through its
+public headers and CMake target, never by including another module's `.cpp`.
+`docs/subagents/shared-interfaces.md` is normative for which module owns which type.
 
 ## 3. Front end
 
 ### 3.1 Lexer
-`logos`-based. Produces tokens with byte spans. String interpolation is lexed as
-a token sequence (`StringStart`, `StringPart`, `InterpStart`, ..., `StringEnd`)
-so the parser can parse embedded expressions. Newline tokens are emitted and the
-parser applies the termination rule (spec §2.6).
+Hand-written, in `src/syntax/lexer.cpp`; no lexer generator. Produces tokens
+with byte spans. String interpolation is lexed as a token sequence
+(`StringStart`, `StringPart`, `InterpStart`, ..., `StringEnd`) so the parser can
+parse embedded expressions. Newline tokens are emitted and the parser applies
+the termination rule (spec §2.6).
 
 ### 3.2 Parser
 Hand-written recursive descent with Pratt precedence for binary operators.
 Error recovery at item and statement boundaries so `leash check` and the LSP
-report multiple errors. Produces `ast::Program` with every node carrying a
+report multiple errors. Produces `syntax::Program` with every node carrying a
 `Span` and a stable `NodeId`.
 
 ### 3.3 Formatter
@@ -114,16 +122,18 @@ innermost literal `allow`. Non-literal cases produce an info diagnostic and are
 enforced at run time.
 
 ### 4.5 Schema generation
-`leash-types::schema` maps types to JSON Schema (spec §11) and produces a
-canonical JSON string whose BLAKE3 hash identifies the schema.
+The `leash_types` schema generator (`src/types/schema.cpp`) maps types to JSON
+Schema (spec §11) and produces a canonical JSON string whose BLAKE3 hash
+identifies the schema.
 
 ## 5. LIR
 
 A compact, typed, serialisable tree. Every node has: `id` (stable, derived from
 module path + item + position), `span`, `ty`, `effects`. Effectful nodes
-additionally have a `site_id` used for journal keys. LIR is emitted by `leash
-ir file.leash` and consumed by `leash run --ir`. It is versioned
-(`lir_version`) and has a JSON Schema in `spec/lir.schema.json`.
+additionally have a `site_id` used for journal keys. LIR is a `std::variant`
+node tree with `nlohmann::json` round-trip functions, emitted by `leash ir
+file.leash` and consumed by `leash run --ir`. It is versioned (`lir_version`)
+and has a JSON Schema in `spec/lir.schema.json`.
 
 Why an IR at all: (a) tooling and meta-agents can consume programs without a
 parser; (b) journal keys must be stable across formatting changes; (c) the
@@ -133,22 +143,56 @@ chains, string interpolation and `for` loops are desugared).
 ## 6. Interpreter
 
 ### 6.1 Values
-```rust
-enum Value { Unit, Bool, Int(i64), Float(f64), Str(Arc<str>), Bytes(Arc<[u8]>), Duration, Money,
-             List(Arc<[Value]>), Tuple(Arc<[Value]>), Record(Arc<Record>), Enum(Arc<EnumVal>),
-             Map(Arc<BTreeMap<Key, Value>>), Fn(Arc<Closure>), Opaque(Arc<dyn Opaque>) , Null }
+```cpp
+// src/runtime/include/leash/runtime/value.hpp
+struct Value;
+
+struct Unit {};
+struct Null {};
+struct Bool   { bool v; };
+struct Int    { std::int64_t v; };
+struct Float  { double v; };
+struct Str    { std::shared_ptr<const std::string> v; };
+struct Bytes  { std::shared_ptr<const std::vector<std::byte>> v; };
+struct List   { std::shared_ptr<const std::vector<Value>> v; };
+struct Tuple  { std::shared_ptr<const std::vector<Value>> v; };
+struct Record { std::shared_ptr<const RecordVal> v; };
+struct Enum   { std::shared_ptr<const EnumVal> v; };
+struct Map    { std::shared_ptr<const std::map<Key, Value>> v; };
+struct Fn     { std::shared_ptr<const Closure> v; };
+struct Opaque { std::shared_ptr<const OpaqueValue> v; };
+
+using Value = std::variant<Unit, Null, Bool, Int, Float, Str, Bytes,
+                           std::chrono::nanoseconds, spec::Money, List, Tuple,
+                           Record, Enum, Map, Fn, Opaque>;
 ```
-Immutable, persistent-by-copy values. `Opaque` covers runtime types (`Agent`,
-`Repo`, `Handle`, ...). All values are serialisable to JSON for journaling
-except closures and handles (which are never journaled: they cannot cross an
-effect boundary).
+Immutable, persistent-by-copy values: a copy is a reference-count bump on the
+`std::shared_ptr<const T>` payload. `OpaqueValue` is an abstract base class
+(`virtual ~OpaqueValue() = default`) covering runtime types (`Agent`, `Repo`,
+`Handle`, ...). All values are serialisable to JSON for journaling except
+closures and handles (which are never journaled: they cannot cross an effect
+boundary). `ValueVisitor` is declared beside the variant; a unit test visits
+every alternative (ADR-0011).
 
 ### 6.2 Execution
-A tree-walking evaluator over LIR, written as `async fn eval(&mut self, node) -> Result<Value, Failure>`
-on tokio. Pure nodes evaluate synchronously inside the async fn. Effectful nodes
-build an `EffectRequest { site_id, kind, input: Json, caps_required, budget_cost_estimate }`
-and hand it to the **effect gateway** (§7). Control flow (`fail`, `break`,
-`return`, `complete`) is modelled with a `Control` enum in the error channel.
+A tree-walking evaluator over LIR, written as
+`asio::awaitable<std::expected<Value, EvalError>> Interpreter::eval(const LirNode& node)`
+on Boost.Asio. Pure nodes evaluate synchronously inside the coroutine. Effectful
+nodes build an `EffectRequest { site_id, kind, input: nlohmann::json,
+caps_required, budget_cost_estimate }` and hand it to the **effect gateway**
+(§7). Control flow (`fail`, `break`, `return`, `complete`) is modelled in the
+error channel rather than the value channel:
+
+```cpp
+struct Control {                        // non-local transfer, not an error
+    enum class Kind { kBreak, kContinue, kReturn, kComplete };
+    Kind kind;
+    std::optional<Value> value;
+};
+using EvalError = std::variant<Failure, Control>;
+```
+
+`fail` constructs a `Failure`; the other three construct a `Control`.
 
 ### 6.3 Scopes
 The interpreter keeps a scope stack. Each frame holds bindings plus optional
@@ -157,11 +201,16 @@ an `ask`/`run` call pushes narrowed scopes; exiting pops them and charges
 consumption upwards.
 
 ### 6.4 Scheduler
-`parallel`, `race`, `map(concurrency:)` and `spawn` create child tasks with a
-copy of the enclosing immutable environment and their own **effect path prefix**
-(branch index). Structured concurrency: a `JoinSet` per block; on block exit all
-children are joined or cancelled. Cancellation propagates through the effect
-gateway to drivers and subprocesses.
+`parallel`, `race`, `map(concurrency:)` and `spawn` create child coroutines with
+`asio::co_spawn` on the run's `io_context`, each with a copy of the enclosing
+immutable environment, its own **effect path prefix** (branch index) and its own
+child `asio::cancellation_signal` slot. Structured concurrency: a `JoinGroup`
+per block; on block exit all children are joined or cancelled. Cancellation
+propagates through the effect gateway to drivers and subprocesses.
+
+TODO(port): Asio has no `JoinSet`; WP-16 confirms the join primitive. The
+`JoinGroup` above (child cancellation slots plus a completion channel) is the
+placeholder, and `race` uses `asio::experimental::awaitable_operators`.
 
 ### 6.5 State and checkpoints
 `state` is a record in the flow frame. `checkpoint "name"` (a) journals a
@@ -182,7 +231,10 @@ EffectRequest ──► budget check ──► capability check ──► journa
 
 - **Journal**: append-only JSONL at `.leash/runs/<id>/journal.jsonl`. Entries
   are fsync'd before the result is returned to the program (crash safety).
-  Large payloads (transcripts, file contents, diffs) are stored in a
+  Every append is posted to the journal writer's
+  `asio::strand<asio::io_context::executor_type>`, so one writer owns the file
+  and concurrent interpreter tasks serialise without interleaving. Large
+  payloads (transcripts, file contents, diffs) are stored in a
   content-addressed store `.leash/cas/<blake3>` and referenced by hash.
 - **Effect identity**: `effect_id = blake3(effect_path)` where `effect_path` is
   the sequence of `(site_id, occurrence)` pairs from the flow root plus branch
@@ -192,23 +244,29 @@ EffectRequest ──► budget check ──► capability check ──► journa
 
 ## 8. Effect handlers
 
-```rust
-#[async_trait]
-trait EffectHandler {
-    fn kind(&self) -> EffectKind;
-    async fn perform(&self, req: EffectRequest, ctx: &EffectCtx) -> Result<EffectResult, Failure>;
-    async fn cancel(&self, req_id: EffectId);
-}
+```cpp
+class EffectHandler {
+public:
+    virtual ~EffectHandler() = default;
+
+    virtual EffectKind kind() const = 0;
+
+    virtual asio::awaitable<std::expected<EffectResult, Failure>>
+    perform(const EffectRequest& req, EffectCtx& ctx) = 0;
+
+    virtual void cancel(EffectId id) = 0;
+};
 ```
 Handlers: `LlmHandler` (dispatches to a `Driver`), `ToolHandler` (builtin,
 Leash-defined, MCP), `ShellHandler`, `FsHandler`, `HumanHandler`,
 `ClockHandler`, `RandHandler`, `EnvHandler`. `EffectCtx` exposes the active `CapSet`, `BudgetScope`, the sandbox, the run
-directory and a `TraceSink`. The LLM handler narrows it to a `DriverCtx` before
-calling a driver (`docs/subagents/shared-interfaces.md`).
+directory, a `TraceSink` and the `asio::cancellation_signal` for the effect. The
+LLM handler narrows it to a `DriverCtx` before calling a driver
+(`docs/subagents/shared-interfaces.md`).
 
 ### 8.1 Tool layer
 A `Tool` is `{ name, description, schema, caps_required, impl }` where `impl` is
-`Builtin(fn)`, `Leash(closure)` or `Mcp(server, name)`. For API/mock drivers the
+`std::variant<BuiltinFn, LeashClosure, McpTool>`. For API/mock drivers the
 runtime executes tool calls itself in the model loop; for CLI drivers, Leash
 tools and MCP tools are exposed to the CLI through a per-run MCP server started
 by the runtime (`leash mcp-serve --run <id>`), so custom tools work uniformly
@@ -218,23 +276,34 @@ across drivers.
 Per run: a working copy of the target repository (git worktree by default,
 plain copy fallback), a scrubbed environment, a path policy derived from
 `CapSet`, a shell policy (tokenised argv matching; no shell unless allowlisted),
-timeouts, output caps. Backend trait allows a container backend (podman/docker)
-later; v1 ships the process backend.
+timeouts, output caps. A `SandboxBackend` interface allows a container backend
+(podman/docker) later; v1 ships the process backend, Seatbelt on macOS and
+bubblewrap or landlock on Linux (ADR-0011).
 
 ## 9. Drivers
 
-```rust
-#[async_trait]
-trait Driver {
-    fn id(&self) -> DriverId;                       // includes model + version + config hash
-    async fn ask(&self, req: AskRequest, ctx: &DriverCtx) -> Result<AskResponse, DriverError>;
-    async fn run(&self, req: RunRequest, ctx: &DriverCtx, events: EventSink) -> Result<RunResponse, DriverError>;
-    fn capabilities(&self) -> DriverCaps;           // structured output? tools? effort? sessions?
-}
+```cpp
+class Driver {
+public:
+    virtual ~Driver() = default;
+
+    virtual std::string id() const = 0;             // includes model + version + config hash
+    virtual DriverCaps caps() const = 0;            // structured output? tools? effort? sessions?
+
+    virtual asio::awaitable<std::expected<AskResponse, DriverError>>
+    ask(const AskRequest& req, DriverCtx& ctx) = 0;
+
+    virtual asio::awaitable<std::expected<RunResponse, DriverError>>
+    run(const RunRequest& req, DriverCtx& ctx, EventSink& sink) = 0;
+};
 ```
-- `anthropic`: raw HTTPS to `POST /v1/messages` with structured outputs
-  (`output_config.format`), strict tools, adaptive thinking, effort, prompt
-  caching breakpoints on the stable prefix; the runtime owns the tool loop.
+- `anthropic`: HTTPS through Boost.Beast over `asio::ssl` to `POST /v1/messages`
+  with structured outputs (`output_config.format`), strict tools, adaptive
+  thinking, effort, prompt caching breakpoints on the stable prefix; the runtime
+  owns the tool loop.
+- `hermes`: spawns `hermes -z <task> --usage-file <path> --in <workdir>`; final
+  text on stdout, no tool or turn events in v1, and the child journal entries
+  are the response, the usage report and the post-check diff.
 - `claude_code`: spawns `claude -p --output-format stream-json --json-schema …
   --allowedTools … --max-budget-usd … --permission-mode … --mcp-config …`;
   parses events into tool-trace entries and usage.
@@ -254,15 +323,17 @@ any time, including with a newer runtime.
 
 ## 11. CLI and LSP
 
-The CLI is a thin layer: parse args → load package → run pipeline → print.
-The LSP reuses `leash-syntax` and `leash-types` for diagnostics, hover (types
-and effects), go-to-definition and formatting.
+The CLI is a thin layer: parse args with CLI11 → load package → run pipeline →
+print. The LSP reuses `leash_syntax` and `leash_types` for diagnostics, hover
+(types and effects), go-to-definition and formatting.
 
 ## 12. Cross-cutting concerns
 
-- **Errors**: `thiserror` types per crate; `Failure` is the only user-visible
-  error type at run time; diagnostics with spans for compile time (`miette`).
-- **Logging**: `tracing` with a `--log` flag; never mixes with the journal.
+- **Errors**: each module returns its own failure type (`SpecError`,
+  `DriverError`, `ToolError`) as `std::expected<T, E>`; `Failure` is the only
+  user-visible error type at run time; diagnostics with spans for compile time,
+  rendered by the hand-written `Diagnostic` renderer in `src/syntax`.
+- **Logging**: spdlog with a `--log` flag; never mixes with the journal.
 - **Determinism tests**: every integration test runs the program twice — live
   against the mock driver, then `replay` — and asserts identical outcome and
   identical derived traces.

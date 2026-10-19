@@ -43,11 +43,13 @@ Copyright 2026 The Leash Authors
 
 Concrete forms:
 
-```rust
+```cpp
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 The Leash Authors
 
-use std::path::Path;
+#pragma once
+
+#include <filesystem>
 ```
 
 ```leash
@@ -61,7 +63,8 @@ module std.patterns
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The Leash Authors
 
-[package]
+[drivers.anthropic]
+model = "claude-opus-5"
 ```
 
 ```sh
@@ -106,20 +109,38 @@ Rules:
 Documentation under `docs/` does not carry per-file headers. The repository
 `LICENSE` covers it, and Markdown headers would appear in rendered output.
 
-## 4. Crate and package metadata
+## 4. Build and package metadata
 
-Every crate in `crates/` declares the licence in `Cargo.toml`:
+The implementation is one CMake project, so the licence is declared once rather
+than per module. The root `CMakeLists.txt` carries it:
 
-```toml
-[package]
-license = "Apache-2.0"
-authors = ["The Leash Authors"]
-repository = "https://github.com/SeamusMullan/Leash"
+```cmake
+project(leash VERSION 0.1.0 LANGUAGES CXX)
+set(LEASH_LICENSE "Apache-2.0")
+set(LEASH_AUTHORS "The Leash Authors")
+set(LEASH_REPOSITORY "https://github.com/SeamusMullan/Leash")
 ```
 
-Use `license`, never `license-file`. Publishing to crates.io requires the
-identifier, and `cargo deny` reads it. The `editors/vscode` package declares
-`"license": "Apache-2.0"` in `package.json`.
+CMake has no per-target licence field, so declare these once in the root file
+and read them where a target needs them; do not repeat the identifier per
+module. Use the SPDX identifier, never a path to the licence file: identifiers
+are what audit tools and package indexes read, and a path is not
+machine-readable.
+
+`vcpkg.json` states the licence too, because anything that reads the dependency
+graph reads the manifest and not the build files:
+
+```json
+{
+  "name": "leash",
+  "version-string": "0.1.0",
+  "license": "Apache-2.0"
+}
+```
+
+The field takes an SPDX licence expression at licence-list version 3.9, so the
+same syntax covers disjunctions such as `CC0-1.0 OR Apache-2.0`. The
+`editors/vscode` package declares `"license": "Apache-2.0"` in `package.json`.
 
 ## 5. Third-party code and dependencies
 
@@ -127,14 +148,40 @@ identifier, and `cargo deny` reads it. The `editors/vscode` package declares
   file and every existing notice, and record it in `THIRD-PARTY-NOTICES.md`. If
   you modify a vendored file, add a line to its header saying what you changed
   and when. That is requirement 4(b), and it is the one most projects breach.
-- **Dependencies**: allowed licences are `Apache-2.0`, `MIT`, `BSD-2-Clause`,
-  `BSD-3-Clause`, `ISC`, `Zlib`, `Unicode-3.0` and `Apache-2.0 WITH LLVM-exception`.
-  `MPL-2.0` is allowed for unmodified dependencies only. `GPL-*`, `AGPL-*`,
-  `LGPL-*`, `SSPL`, `BUSL` and proprietary terms are refused, because they would
-  restrict how users may distribute Leash. Enforced by `cargo deny check
-  licenses` in CI with the allowlist in `deny.toml`.
+- **Dependencies**: allowed licences are `Apache-2.0`, `BSL-1.0`, `MIT`,
+  `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `Zlib`, `CC0-1.0`, `Unicode-3.0` and
+  `Apache-2.0 WITH LLVM-exception`. `MPL-2.0` is allowed for unmodified
+  dependencies only. `GPL-*`, `AGPL-*`, `LGPL-*`, `SSPL`, `BUSL` and proprietary
+  terms are refused, because they would restrict how users may distribute
+  Leash. Enforced by `scripts/check-licences.sh` in CI; its allowlist is the
+  generic list in this paragraph plus the table below.
 - **Model-generated code** is treated as your own contribution. You are
   responsible for it, exactly as if you had typed it.
+
+Every vcpkg port states its licence as an SPDX expression in its own
+`vcpkg.json`, and vcpkg records those expressions in the SPDX bill of materials
+it generates for an install. The check reads that bill of materials instead of
+scraping `LICENSE` files, so a port that changes its licence fails on the next
+baseline bump. The current set:
+
+| Dependency | vcpkg port | SPDX identifier |
+|---|---|---|
+| Boost.Asio, Boost.Beast, Boost.Process, Boost.UUID | `boost-asio`, `boost-beast`, `boost-process`, `boost-uuid` | `BSL-1.0` |
+| OpenSSL | `openssl` | `Apache-2.0` |
+| libblake3 | `blake3` | `CC0-1.0 OR Apache-2.0` |
+| valijson | `valijson` | `BSD-2-Clause` |
+| nlohmann/json | `nlohmann-json` | `MIT` |
+| CLI11 | `cli11` | `BSD-3-Clause` |
+| Catch2 v3 | `catch2` | `BSL-1.0` |
+| spdlog | `spdlog` | `MIT` |
+| toml++ | `tomlplusplus` | `MIT` |
+| RapidCheck | `rapidcheck` | `BSD-2-Clause` |
+
+`blake3` is offered under either licence and its port declares the disjunction,
+so both identifiers are accepted for that port. `rapidcheck` declares
+`BSD-2-Clause` in its port manifest, which matches the two-clause text in its
+upstream `LICENSE.md`. Catch2 and RapidCheck are test-only and are never linked
+into the shipped `leash` binary.
 
 ## 6. The NOTICE file
 
@@ -203,11 +250,13 @@ logo are separate from the copyright licence. If the project gains users, add a
 
 ## 10. Enforcement
 
-`just lint` and CI run a header check over every tracked file whose extension is
-in the header list, excluding the paths in section 3. A missing or malformed
-header fails the build. The check is a small script rather than a dependency;
-keep it under fifty lines and give it a `--fix` mode that inserts a missing
-header at the right place.
+`just lint` and CI run `scripts/check-headers.sh` over every tracked file whose
+extension is in the header list, excluding the paths in section 3. A missing or
+malformed header fails the build: the script exits non-zero and prints each
+offending path with the text it expected. It is a small script rather than a
+dependency; keep it under fifty lines and give it a `--fix` mode that inserts a
+missing header at the right place, after any shebang, and leaves a correct
+header untouched.
 
 Adopting the REUSE specification in full, with a `LICENSES/` directory and
 `.license` sidecars everywhere, is optional and can come later. `reuse lint`
@@ -217,8 +266,9 @@ compatible, so nothing needs rewriting if that day comes.
 ## 11. New file checklist
 
 1. Header in the first lines, correct comment syntax, current year.
-2. Crate metadata declares `license = "Apache-2.0"` if this is a new crate.
-3. New dependency licences are on the allowlist in `deny.toml`.
+2. `LEASH_LICENSE` in the root `CMakeLists.txt` and `license` in `vcpkg.json`
+   stay `Apache-2.0`; a new module adds no licence metadata of its own.
+3. New dependency licences are on the allowlist in `scripts/check-licences.sh`.
 4. Vendored or adapted code keeps its upstream notices, is listed in
    `THIRD-PARTY-NOTICES.md`, and says what you changed.
 5. `just lint` passes.

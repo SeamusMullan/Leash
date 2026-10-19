@@ -1,7 +1,7 @@
 # ADR-0001 Implementation language: Rust
 
-Status: accepted and confirmed (2026-09-12). Reviewed against a three-way
-comparison with Go and TypeScript before confirmation; see Alternatives.
+Status: superseded by ADR-0011 (2026-10-19; Sarah vetoed Rust). Kept for the
+record; its reasoning about agent-written code still informs ADR-0011.
 
 ## Context
 Leash needs a lexer/parser, a type and effect checker, an interpreter with an

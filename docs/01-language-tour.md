@@ -4,7 +4,7 @@ Status: draft v0.1. Read `docs/00-vision.md` first. The formal grammar is in
 `spec/grammar.ebnf`; the semantics are in `docs/02-language-spec.md`. Runnable
 examples are in `examples/`.
 
-Leash looks like a small modern scripting language (Rust/TypeScript/Kotlin
+Leash looks like a small modern scripting language (C++/TypeScript/Kotlin
 flavoured). Most of it is ordinary code. A handful of keywords give it its purpose:
 `agent`, `tool`, `task`, `flow`, `ask`, `run`, `spawn`, `parallel`, `race`,
 `retry`, `attempt`/`recover`, `fail`, `checkpoint`, `verify`, `complete`.

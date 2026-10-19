@@ -39,7 +39,7 @@ Method kinds and the evidence they produce:
 | `fn(...)` returning a record | as the fn's effects | the record's fields | must be given |
 | `judge(agent, prompt)` | **no** | `verdict: Bool, rationale` | `verdict` |
 
-`test(cmd)` parses common runner outputs (Jest, Vitest, pytest, cargo test, go
+`test(cmd)` parses common runner outputs (Jest, Vitest, pytest, CTest, go
 test, JUnit XML) into counts; unknown runners fall back to exit code with a
 warning in the evidence entry.
 
@@ -95,7 +95,7 @@ Computed by the trace layer from the journal (paper's five-label taxonomy):
 | `autonomous_verified_success` | `complete` succeeded; all evidence deterministic and passing (timeouts recorded allowed); no human intervention marked `avoidable` |
 | `assisted_verified_success` | as above, but ≥1 intervention marked `avoidable` (a gate answer or `ask_human` that supplied context, a diagnosis or a decision the harness should have provided) |
 | `unverified_success` | the flow completed with `judge`-only or skipped evidence for ≥1 requirement, or `complete` was bypassed with `--allow-unverified` |
-| `failed` | the flow ended with `fail` (any kind except Permission/Entropy on unsafe grounds) |
+| `failed` | the flow ended with `fail` (any kind except Permission/Entropy on safety grounds) |
 | `unsafe_invalid` | the entropy audit found test weakening or out-of-scope destructive edits; or a `Permission` failure occurred after the model attempted a denied destructive action |
 
 The label and its justification go to `traces/outcome.json`.
@@ -146,7 +146,7 @@ report). Judge prompts and verdicts are journaled like any `ask`.
 
 `audit.entropy(repo, since: checkpoint) -> EntropyReport` runs deterministic
 heuristics over the diff: new untracked files not referenced anywhere; deleted
-or skipped tests (`it.skip`, `@pytest.mark.skip`, `#[ignore]`); assertions
+or skipped tests (`it.skip`, `@pytest.mark.skip`, `[.]` in Catch2); assertions
 removed; dependency manifest changes; debug prints; TODO/FIXME added;
 documentation referencing removed symbols. Each item has a category (`code
 docs dependency test residue architecture workflow`) and severity 0–3. The
