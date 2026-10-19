@@ -46,7 +46,7 @@ jobs:
           CC: clang
           CXX: clang++
       - run: cmake --build build/ci
-      - run: run-clang-tidy -p build/ci -warnings-as-errors '*'
+      - run: run-clang-tidy -p build/ci -clang-tidy-binary=/usr/lib/llvm-19/bin/clang-tidy -warnings-as-errors '*'
 
   sanitizers:
     runs-on: ubuntu-latest
