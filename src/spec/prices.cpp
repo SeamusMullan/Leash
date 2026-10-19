@@ -58,7 +58,7 @@ std::optional<SpecError> read_field(const toml::table& entry, std::string_view f
         };
     }
 
-    destination = *value;
+    destination = value;
     return std::nullopt;
 }
 
